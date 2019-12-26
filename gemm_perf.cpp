@@ -393,16 +393,18 @@ int main (int argc, const char* argv[]) {
         std::sort(results.begin(), results.end(), SortResult);
         std::cout << dims_ss.str() << dtype_ss.str() << results[0] << std::endl;
 
-        results.clear();
-        for (auto algo : tensor_algo_config) {
-            
-            param.algo = algo;
-            auto result = ProfileGemm(param, loop);
-            results.push_back(result);
+        if (prop.major > 6) {
+            results.clear();
+            for (auto algo : tensor_algo_config) {
+
+                param.algo = algo;
+                auto result = ProfileGemm(param, loop);
+                results.push_back(result);
+            }
+            std::cout << dims_ss.str() << dtype_ss.str() << results[0] << std::endl;
+            std::sort(results.begin(), results.end(), SortResult);
+            std::cout << dims_ss.str() << dtype_ss.str()  << results[0] << std::endl;
         }
-        std::cout << dims_ss.str() << dtype_ss.str() << results[0] << std::endl;
-        std::sort(results.begin(), results.end(), SortResult);
-        std::cout << dims_ss.str() << dtype_ss.str()  << results[0] << std::endl;
 
         RUNTIME_API_CALL(cudaFree(dev_A));
         RUNTIME_API_CALL(cudaFree(dev_B));
