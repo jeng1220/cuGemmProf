@@ -197,7 +197,6 @@ Result_t ProfileGemm(const Param_t& param, int loop) {
 
     cudaEvent_t start;
     cudaEvent_t end;
-    cudaError_t err;
     cublasStatus_t ret;
 
     RUNTIME_API_CALL(cudaEventCreate(&start));
