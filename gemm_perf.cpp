@@ -329,7 +329,7 @@ int main (int argc, const char* argv[]) {
     param.ldc = param.m;
 
     std::cout << "device, op(A), op(B), m, n, k, Atype, Btype, Ctype, "
-        "ComputeType, time(ms), GFLOPS" << std::endl;
+        "ComputeType, algo, time(ms), GFLOPS" << std::endl;
 
     std::stringstream dims_ss;
     dims_ss << prop.name << ", "
