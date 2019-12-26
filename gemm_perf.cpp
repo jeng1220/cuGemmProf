@@ -312,7 +312,10 @@ int main (int argc, const char* argv[]) {
         {CUDA_C_64F, 16}
     };
 
-    RUNTIME_API_CALL(cudaSetDevice(result["d"].as<int>()));
+    auto device_id = result["d"].as<int>();
+    RUNTIME_API_CALL(cudaSetDevice(device_id));
+    cudaDeviceProp prop;
+    RUNTIME_API_CALL(cudaGetDeviceProperties(&prop, device_id));
 
     Param_t param;
     CUBLAS_API_CALL(cublasCreate(&param.handle));
@@ -326,11 +329,12 @@ int main (int argc, const char* argv[]) {
     param.ldb = (param.transb == CUBLAS_OP_N) ? param.k : param.n;
     param.ldc = param.m;
 
-    std::cout << "op(A), op(B), m, n, k, Atype, Btype, Ctype, "
+    std::cout << "device, op(A), op(B), m, n, k, Atype, Btype, Ctype, "
         "ComputeType, time(ms), GFLOPS" << std::endl;
 
     std::stringstream dims_ss;
-    dims_ss << kOperation2Str.at(param.transa) << ", "
+    dims_ss << prop.name << ", "
+            << kOperation2Str.at(param.transa) << ", "
             << kOperation2Str.at(param.transb) << ", "
             << param.m << ", "
             << param.n << ", "
