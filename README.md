@@ -1,5 +1,5 @@
-# GEMM prof #
-A simple tool to profile performance of multiple combinations of GEMM
+# cuGEMM prof #
+A simple tool to profile performance of multiple combinations of GEMM of cuBLAS
 
 ## requirement ##
 * CUDA
