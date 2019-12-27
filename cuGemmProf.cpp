@@ -319,12 +319,12 @@ void ProfileGemm(const Param_t& param, const std::vector<cublasGemmAlgo_t>& algo
         RUNTIME_API_CALL(cudaEventRecord(start));
         for (int i = 0; i < loop; ++i) {
             ret = cublasGemmEx(param.handle,
-                            param.transa, param.transb,
-                            param.m, param.n, param.k,
-                            param.alpha, param.A, param.dtype.Atype, param.lda,
-                            param.B, param.dtype.Btype, param.ldb, param.beta,
-                            param.C, param.dtype.Ctype, param.ldc,
-                            param.dtype.computeType, algo);
+                               param.transa, param.transb,
+                               param.m, param.n, param.k,
+                               param.alpha, param.A, param.dtype.Atype, param.lda,
+                               param.B, param.dtype.Btype, param.ldb, param.beta,
+                               param.C, param.dtype.Ctype, param.ldc,
+                               param.dtype.computeType, algo);
             if (ret != CUBLAS_STATUS_SUCCESS && 
                 ret != CUBLAS_STATUS_NOT_SUPPORTED &&
                 ret != CUBLAS_STATUS_INVALID_VALUE) {
