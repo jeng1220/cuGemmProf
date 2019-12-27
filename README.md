@@ -14,6 +14,9 @@ $ make
 ```sh
 $ ./gemm_prof --help
 $ ./gemm_prof -m 128 -n 64 -k 1024 --type 5,6 -l 10
+$ ./gemm_prof -m 128 -n 64 -k 1024 --type 5,6 -l 10 --algo 3,5
+$ ./gemm_prof -m 128 -n 64 -k 1024 --type 5,6 -l 10 --algo 3,5 --tensor_algo 11,7
+$ ./gemm_prof -m 128 -n 64 -k 1024 --type 5,6 -l 10 --all_algo
 ```
 
 ## available options ##
@@ -29,6 +32,9 @@ Usage:
       --ta        set A to CUBLAS_OP_T, else CUBLAS_OP_N
       --tb        set B to CUBLAS_OP_T, else CUBLAS_OP_N
       --type arg  slect combination of types (default: 5)
+      --algo arg         assgin algorithm ID (0~23)
+      --tensor_algo arg  assgin TensorOp algorithm ID (0~15)
+      --all_algo         run all algorithms
       --help      print help
 
 available combination of types:
