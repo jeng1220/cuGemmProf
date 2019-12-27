@@ -7,6 +7,7 @@ A simple tool to profile performance of multiple combinations of GEMM of cuBLAS
 
 ## build ##
 ```sh
+$ git submodule init && git submodule update
 $ make
 ```
 
