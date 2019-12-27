@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <map>
 #include <string>
-#include <sstream>
 #include <iostream>
 #include <cstdlib>
 #include <cstring>
@@ -127,7 +126,7 @@ struct Param_t {
     void *beta;
     void *C;
     int ldc;
-    cublasGemmAlgo_t algo;
+    //cublasGemmAlgo_t algo;
     Dtypes_t dtype;
 };
 
@@ -183,17 +182,18 @@ struct Result_t {
     cublasGemmAlgo_t algo;
     float time;
     float gflops;
-    friend std::ostream& operator<<(std::ostream& os, const Result_t& dt);
+    friend std::ostream& operator<<(std::ostream& os, const Result_t& x);
 };
 
-std::ostream& operator<<(std::ostream& os, const Result_t& dt) {
-    os << kAlgo2Str.at(dt.algo) << ", " << dt.time << ", " << dt.gflops;
+std::ostream& operator<<(std::ostream& os, const Result_t& x) {
+    os << kAlgo2Str.at(x.algo) << ", " << x.time << ", " << x.gflops;
     return os;
 }
 
-bool SortResult (Result_t i,Result_t j) { return (i.time < j.time); }
+bool SortResult (const Result_t& x, const Result_t& y) { return (x.time < y.time); }
 
-Result_t ProfileGemm(const Param_t& param, int loop) {
+void ProfileGemm(const Param_t& param, const std::vector<cublasGemmAlgo_t>& algos,
+    const std::string& config_info, int loop) {
 
     cudaEvent_t start;
     cudaEvent_t end;
@@ -201,46 +201,61 @@ Result_t ProfileGemm(const Param_t& param, int loop) {
 
     RUNTIME_API_CALL(cudaEventCreate(&start));
     RUNTIME_API_CALL(cudaEventCreate(&end));
-    float time = 0.f;
-    bool fault = false;
 
-    RUNTIME_API_CALL(cudaEventRecord(start));
-    for (int i = 0; i < loop; ++i) {
-        ret = cublasGemmEx(param.handle,
-                           param.transa, param.transb,
-                           param.m, param.n, param.k,
-                           param.alpha, param.A, param.dtype.Atype, param.lda,
-                           param.B, param.dtype.Btype, param.ldb, param.beta,
-                           param.C, param.dtype.Ctype, param.ldc,
-                           param.dtype.computeType, param.algo);
-        if (ret != CUBLAS_STATUS_SUCCESS) {
-            fault = true;
-            if (ret != CUBLAS_STATUS_NOT_SUPPORTED) {
+    std::vector<Result_t> results;
+    for (auto algo : algos) {
+
+        //param.algo = algo;
+        float time = 0.f;
+        bool fault = false;
+
+        RUNTIME_API_CALL(cudaEventRecord(start));
+        for (int i = 0; i < loop; ++i) {
+            ret = cublasGemmEx(param.handle,
+                            param.transa, param.transb,
+                            param.m, param.n, param.k,
+                            param.alpha, param.A, param.dtype.Atype, param.lda,
+                            param.B, param.dtype.Btype, param.ldb, param.beta,
+                            param.C, param.dtype.Ctype, param.ldc,
+                            param.dtype.computeType, algo);
+            if (ret != CUBLAS_STATUS_SUCCESS && 
+                ret != CUBLAS_STATUS_NOT_SUPPORTED &&
+                ret != CUBLAS_STATUS_INVALID_VALUE) {
+                fault = true;
                 CUBLAS_API_CALL(ret);
+                break;
             }
-            break;
         }
+        RUNTIME_API_CALL(cudaEventRecord(end));
+        RUNTIME_API_CALL(cudaEventSynchronize(end));
+        RUNTIME_API_CALL(cudaEventElapsedTime(&time, start, end));
+
+        float gflops = 0;
+        if (!fault) { 
+            time /= loop;
+            float workload = (2.f * param.m * param.n * param.k) * 1e-9;
+            gflops = workload / (time * 1e-3);
+        }
+        else {
+            time = NAN;
+            gflops = NAN;
+        }
+
+        results.push_back(Result_t{algo, time, gflops});
     }
-    RUNTIME_API_CALL(cudaEventRecord(end));
-    RUNTIME_API_CALL(cudaEventSynchronize(end));
-    RUNTIME_API_CALL(cudaEventElapsedTime(&time, start, end));
+
     RUNTIME_API_CALL(cudaEventDestroy(start));
     RUNTIME_API_CALL(cudaEventDestroy(end));
-
-    if (fault) { time = FLT_MAX; }
-    time /= loop;
-    float workload = (2.f * param.m * param.n * param.k) * 1e-9;
-    float gflops = (fault) ? NAN : workload / (time * 1e-3);
-
-    Result_t result{param.algo, time, gflops};
-    return result;
+    std::cout << config_info << results[0] << std::endl;
+    std::sort(results.begin(), results.end(), SortResult);
+    std::cout << config_info << results[0] << std::endl;
 }
 
 int main (int argc, const char* argv[]) {
 
     auto result = Parse(argc, argv);
 
-    const Dtypes_t dtype_config[] = {
+    const std::vector<Dtypes_t> gemm_types = {
         Dtypes_t{CUDA_R_16F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F},
         Dtypes_t{CUDA_R_32I, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32I},
         Dtypes_t{CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F},
@@ -252,7 +267,7 @@ int main (int argc, const char* argv[]) {
         Dtypes_t{CUDA_C_32F, CUDA_C_32F, CUDA_C_32F, CUDA_C_32F},
     };
 
-    const cublasGemmAlgo_t cuda_algo_config[] = {
+    const std::vector<cublasGemmAlgo_t> cuda_algos = {
         CUBLAS_GEMM_DEFAULT,
         CUBLAS_GEMM_ALGO0,
         CUBLAS_GEMM_ALGO1,
@@ -280,7 +295,7 @@ int main (int argc, const char* argv[]) {
         CUBLAS_GEMM_ALGO23
     };
 
-    const cublasGemmAlgo_t tensor_algo_config[] = {
+    const std::vector<cublasGemmAlgo_t> tensor_algos = {
         CUBLAS_GEMM_DEFAULT_TENSOR_OP,
         CUBLAS_GEMM_ALGO0_TENSOR_OP,
         CUBLAS_GEMM_ALGO1_TENSOR_OP,
@@ -331,26 +346,27 @@ int main (int argc, const char* argv[]) {
     std::cout << "device, op(A), op(B), m, n, k, Atype, Btype, Ctype, "
         "ComputeType, algo, time(ms), GFLOPS" << std::endl;
 
-    std::stringstream dims_ss;
-    dims_ss << prop.name << ", "
-            << kOperation2Str.at(param.transa) << ", "
-            << kOperation2Str.at(param.transb) << ", "
-            << param.m << ", "
-            << param.n << ", "
-            << param.k << ", ";
+    std::string dims_info;
+    dims_info = std::string(prop.name) + ", "
+            + kOperation2Str.at(param.transa) + ", "
+            + kOperation2Str.at(param.transb) + ", "
+            + std::to_string(param.m) + ", "
+            + std::to_string(param.n) + ", "
+            + std::to_string(param.k) + ", ";
 
     auto selected_dtypes = result["type"].as< std::vector<int> >();
 
     for (auto dtype_id : selected_dtypes) {
 
-        auto dtypes = dtype_config[dtype_id];
+        auto dtypes = gemm_types[dtype_id];
         param.dtype = dtypes;
 
-        std::stringstream dtype_ss;
-        dtype_ss << kDtype2Str.at(param.dtype.Atype) << ", "
-           << kDtype2Str.at(param.dtype.Btype) << ", "
-           << kDtype2Str.at(param.dtype.Ctype) << ", "
-           << kDtype2Str.at(param.dtype.computeType) << ", ";
+        std::string all_info;
+        all_info = dims_info
+           + kDtype2Str.at(param.dtype.Atype) + ", "
+           + kDtype2Str.at(param.dtype.Btype) + ", "
+           + kDtype2Str.at(param.dtype.Ctype) + ", "
+           + kDtype2Str.at(param.dtype.computeType) + ", ";
 
         auto src_dtype_size = dtype2size.at(dtypes.Atype);
         auto dst_dtype_size = dtype2size.at(dtypes.Ctype);
@@ -382,28 +398,10 @@ int main (int argc, const char* argv[]) {
 
         auto loop = result["l"].as<int>();
 
-        std::vector<Result_t> results;
-        for (auto algo : cuda_algo_config) {
-            
-            param.algo = algo;
-            auto result = ProfileGemm(param, loop);
-            results.push_back(result);
-        }
-        std::cout << dims_ss.str() << dtype_ss.str() << results[0] << std::endl;
-        std::sort(results.begin(), results.end(), SortResult);
-        std::cout << dims_ss.str() << dtype_ss.str() << results[0] << std::endl;
+        ProfileGemm(param, cuda_algos, all_info, loop);
 
         if (prop.major > 6) {
-            results.clear();
-            for (auto algo : tensor_algo_config) {
-
-                param.algo = algo;
-                auto result = ProfileGemm(param, loop);
-                results.push_back(result);
-            }
-            std::cout << dims_ss.str() << dtype_ss.str() << results[0] << std::endl;
-            std::sort(results.begin(), results.end(), SortResult);
-            std::cout << dims_ss.str() << dtype_ss.str()  << results[0] << std::endl;
+            ProfileGemm(param, tensor_algos, all_info, loop);
         }
 
         RUNTIME_API_CALL(cudaFree(dev_A));
