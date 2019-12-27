@@ -316,12 +316,12 @@ std::vector<cublasGemmAlgo_t> SetupAlgo(const cxxopts::ParseResult& parse, const
     const std::vector<cublasGemmAlgo_t>& all_options) {
 
     std::vector<cublasGemmAlgo_t> select_algo;
-        if (parse.count(option)) {
+        if (parse.count("all_algo")) {
+            select_algo = all_options;
+        }
+        else if (parse.count(option)) {
             auto select_id = parse[option].as< std::vector<int> >();
             select_algo = Int2Algo(select_id, CUBLAS_GEMM_ALGO0);
-        }
-        else if (parse.count("all_algo")) {
-            select_algo = all_options;
         }
         else {
             select_algo.push_back(CUBLAS_GEMM_DEFAULT);
