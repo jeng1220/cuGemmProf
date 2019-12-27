@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cfloat>
+#include <cstdint>
 
 #define RUNTIME_API_CALL(apiFuncCall)                                          \
 do {                                                                           \
@@ -52,6 +53,17 @@ const std::map<cudaDataType_t, std::string> kDtype2Str = {
     ADD_KEY_AND_STR(CUDA_C_8I),
     ADD_KEY_AND_STR(CUDA_C_32F),
     ADD_KEY_AND_STR(CUDA_C_64F)
+};
+
+const std::map<cudaDataType_t, int> dtype2size = {
+    {CUDA_R_8I,   1},
+    {CUDA_R_16F,  2},
+    {CUDA_R_32I,  4},
+    {CUDA_R_32F,  4},
+    {CUDA_R_64F,  8},
+    {CUDA_C_8I,   2},
+    {CUDA_C_32F,  8},
+    {CUDA_C_64F, 16}
 };
 
 const std::map<cublasOperation_t, std::string> kOperation2Str = {
@@ -251,6 +263,44 @@ void ProfileGemm(const Param_t& param, const std::vector<cublasGemmAlgo_t>& algo
     std::cout << config_info << results[0] << std::endl;
 }
 
+std::string Mask2Str(const std::vector<bool>& mask) {
+    std::string info;
+    auto count = std::count_if(mask.begin(), mask.end(),
+        [](bool x) { return x; });
+    if (count == mask.size()) {
+        info = "all meet, ";
+    }
+    else {
+        info = "(";
+        for (auto bit : mask) {
+            info += std::to_string(static_cast<int>(bit)) + ".";
+        }
+        info += "), ";
+    }
+    return info;
+}
+
+std::string Dp4aRestrictions(const Param_t& param) {
+    std::vector<bool> mask(2);
+    mask[0] = param.lda % 4 == 0;
+    mask[1] = param.ldb % 4 == 0;
+    return Mask2Str(mask);
+}
+
+std::string TensorCoreRestrictions(const Param_t& param) {
+    // refer to https://docs.nvidia.com/cuda/cublas/#tensorop-restrictions
+    std::vector<bool> mask(8);
+    mask[0] = param.m % 4 == 0;
+    mask[1] = param.k % 8 == 0;
+    mask[2] = reinterpret_cast<intptr_t>(param.A) % 16 == 0;
+    mask[3] = reinterpret_cast<intptr_t>(param.B) % 16 == 0;
+    mask[4] = reinterpret_cast<intptr_t>(param.C) % 16 == 0;
+    mask[5] = param.lda % (16 / dtype2size.at(param.dtype.Atype)) == 0;
+    mask[6] = param.ldb % (16 / dtype2size.at(param.dtype.Btype)) == 0;
+    mask[7] = param.ldc % (16 / dtype2size.at(param.dtype.Ctype)) == 0;
+    return Mask2Str(mask);
+}
+
 int main (int argc, const char* argv[]) {
 
     auto result = Parse(argc, argv);
@@ -315,16 +365,6 @@ int main (int argc, const char* argv[]) {
         CUBLAS_GEMM_ALGO15_TENSOR_OP,
     };
 
-    const std::map<cudaDataType_t, int> dtype2size = {
-        {CUDA_R_8I,   1},
-        {CUDA_R_16F,  2},
-        {CUDA_R_32I,  4},
-        {CUDA_R_32F,  4},
-        {CUDA_R_64F,  8},
-        {CUDA_C_8I,   2},
-        {CUDA_C_32F,  8},
-        {CUDA_C_64F, 16}
-    };
 
     auto device_id = result["d"].as<int>();
     RUNTIME_API_CALL(cudaSetDevice(device_id));
@@ -344,7 +384,8 @@ int main (int argc, const char* argv[]) {
     param.ldc = param.m;
 
     std::cout << "device, op(A), op(B), m, n, k, Atype, Btype, Ctype, "
-        "ComputeType, algo, time(ms), GFLOPS" << std::endl;
+        "ComputeType, Dp4aRestrictions(lda.ldb), TensorCoreRestrictions(m.k.A.B.C.lda.ldb.ldc), "
+        "algo, time(ms), GFLOPS" << std::endl;
 
     std::string dims_info;
     dims_info = std::string(prop.name) + ", "
@@ -367,6 +408,12 @@ int main (int argc, const char* argv[]) {
            + kDtype2Str.at(param.dtype.Btype) + ", "
            + kDtype2Str.at(param.dtype.Ctype) + ", "
            + kDtype2Str.at(param.dtype.computeType) + ", ";
+        if (param.dtype.computeType == CUDA_R_32I) {
+            all_info += Dp4aRestrictions(param);
+        }
+        else {
+            all_info += "NA, ";
+        }
 
         auto src_dtype_size = dtype2size.at(dtypes.Atype);
         auto dst_dtype_size = dtype2size.at(dtypes.Ctype);
@@ -385,12 +432,12 @@ int main (int argc, const char* argv[]) {
         auto compute_dtype_size = dtype2size.at(dtypes.computeType);
  
         char* host_alpha;
-        host_alpha = (char*)malloc(compute_dtype_size);
+        host_alpha = reinterpret_cast<char*>(malloc(compute_dtype_size));
         memset(host_alpha, 0, compute_dtype_size);
         host_alpha[0] = 1; 
 
         char* host_beta;
-        host_beta = (char*)malloc(compute_dtype_size);
+        host_beta = reinterpret_cast<char*>(malloc(compute_dtype_size));
         memset(host_beta, 0, compute_dtype_size);
 
         param.alpha = (void*)host_alpha;
@@ -398,10 +445,11 @@ int main (int argc, const char* argv[]) {
 
         auto loop = result["l"].as<int>();
 
-        ProfileGemm(param, cuda_algos, all_info, loop);
+        ProfileGemm(param, cuda_algos, all_info + "NA, ", loop);
 
         if (prop.major > 6) {
-            ProfileGemm(param, tensor_algos, all_info, loop);
+            auto info = TensorCoreRestrictions(param);
+            ProfileGemm(param, tensor_algos, all_info + info, loop);
         }
 
         RUNTIME_API_CALL(cudaFree(dev_A));
