@@ -55,7 +55,7 @@ const std::map<cudaDataType_t, std::string> kDtype2Str = {
     ADD_KEY_AND_STR(CUDA_C_64F)
 };
 
-const std::map<cudaDataType_t, int> dtype2size = {
+const std::map<cudaDataType_t, int> kDtype2Size = {
     {CUDA_R_8I,   1},
     {CUDA_R_16F,  2},
     {CUDA_R_32I,  4},
@@ -158,27 +158,30 @@ cxxopts::ParseResult Parse(int argc, const char* argv[]) {
     ("tb", "set B to CUBLAS_OP_T, else CUBLAS_OP_N")
     ("type", "slect combination of types",
         cxxopts::value< std::vector<int> >()->default_value("5"))
+    ("algo", "assgin algorithm ID (0~23)", cxxopts::value< std::vector<int> >())
+    ("tensor_algo", "assgin TensorOp algorithm ID (0~15)", cxxopts::value< std::vector<int> >())
+    ("all_algo", "run all algorithms")
     ("help", "print help");
-    
+
     auto result = options.parse(argc, (char**&)argv);
 
-    std::stringstream type_info;
-    type_info << "available combination of types:\n";
-    type_info << "ID, ComputeType, Atype,      Btype,      Ctype\n";
-    type_info << "0,  {CUDA_R_16F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F}\n";
-    type_info << "1,  {CUDA_R_32I, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32I}\n";
-    type_info << "2,  {CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F}\n";
-    type_info << "3,  {CUDA_R_32F, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32F}\n";
-    type_info << "4,  {CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_32F}\n";
-    type_info << "5,  {CUDA_R_32F, CUDA_R_32F, CUDA_R_32F, CUDA_R_32F}\n";
-    type_info << "6,  {CUDA_R_64F, CUDA_R_64F, CUDA_R_64F, CUDA_R_64F}\n";
-    type_info << "7,  {CUDA_C_32F, CUDA_C_8I,  CUDA_C_8I,  CUDA_C_32F}\n";
-    type_info << "8,  {CUDA_C_32F, CUDA_C_32F, CUDA_C_32F, CUDA_C_32F}\n";
-    type_info << std::endl;
+    std::string type_info;
+    type_info = "available combination of types:\n"
+                "ID, ComputeType, Atype,      Btype,      Ctype\n"
+                "0,  {CUDA_R_16F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F}\n"
+                "1,  {CUDA_R_32I, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32I}\n"
+                "2,  {CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F}\n"
+                "3,  {CUDA_R_32F, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32F}\n"
+                "4,  {CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_32F}\n"
+                "5,  {CUDA_R_32F, CUDA_R_32F, CUDA_R_32F, CUDA_R_32F}\n"
+                "6,  {CUDA_R_64F, CUDA_R_64F, CUDA_R_64F, CUDA_R_64F}\n"
+                "7,  {CUDA_C_32F, CUDA_C_8I,  CUDA_C_8I,  CUDA_C_32F}\n"
+                "8,  {CUDA_C_32F, CUDA_C_32F, CUDA_C_32F, CUDA_C_32F}\n";
+
 
     if (result.count("help")) {
         std::cout << options.help() << std::endl;
-        std::cout << type_info.str();
+        std::cout << type_info;
         exit(EXIT_SUCCESS);
     }
 
@@ -295,10 +298,35 @@ std::string TensorCoreRestrictions(const Param_t& param) {
     mask[2] = reinterpret_cast<intptr_t>(param.A) % 16 == 0;
     mask[3] = reinterpret_cast<intptr_t>(param.B) % 16 == 0;
     mask[4] = reinterpret_cast<intptr_t>(param.C) % 16 == 0;
-    mask[5] = param.lda % (16 / dtype2size.at(param.dtype.Atype)) == 0;
-    mask[6] = param.ldb % (16 / dtype2size.at(param.dtype.Btype)) == 0;
-    mask[7] = param.ldc % (16 / dtype2size.at(param.dtype.Ctype)) == 0;
+    mask[5] = param.lda % (16 / kDtype2Size.at(param.dtype.Atype)) == 0;
+    mask[6] = param.ldb % (16 / kDtype2Size.at(param.dtype.Btype)) == 0;
+    mask[7] = param.ldc % (16 / kDtype2Size.at(param.dtype.Ctype)) == 0;
     return Mask2Str(mask);
+}
+
+std::vector<cublasGemmAlgo_t> Int2Algo(const std::vector<int>& select_id, cublasGemmAlgo_t base) {
+    std::vector<cublasGemmAlgo_t> algos;
+    for (auto id : select_id) {
+        algos.push_back(static_cast<cublasGemmAlgo_t>(id + static_cast<int>(base)));
+    }
+    return algos;
+}
+
+std::vector<cublasGemmAlgo_t> SetupAlgo(const cxxopts::ParseResult& parse, const char option[],
+    const std::vector<cublasGemmAlgo_t>& all_options) {
+
+    std::vector<cublasGemmAlgo_t> select_algo;
+        if (parse.count(option)) {
+            auto select_id = parse[option].as< std::vector<int> >();
+            select_algo = Int2Algo(select_id, CUBLAS_GEMM_ALGO0);
+        }
+        else if (parse.count("all_algo")) {
+            select_algo = all_options;
+        }
+        else {
+            select_algo.push_back(CUBLAS_GEMM_DEFAULT);
+        }
+        return select_algo;
 }
 
 int main (int argc, const char* argv[]) {
@@ -415,8 +443,8 @@ int main (int argc, const char* argv[]) {
             all_info += "NA, ";
         }
 
-        auto src_dtype_size = dtype2size.at(dtypes.Atype);
-        auto dst_dtype_size = dtype2size.at(dtypes.Ctype);
+        auto src_dtype_size = kDtype2Size.at(dtypes.Atype);
+        auto dst_dtype_size = kDtype2Size.at(dtypes.Ctype);
 
         void* dev_A;
         RUNTIME_API_CALL(cudaMalloc(&dev_A, param.m * param.k * src_dtype_size));
@@ -429,7 +457,7 @@ int main (int argc, const char* argv[]) {
         param.B = dev_B;
         param.C = dev_C;
 
-        auto compute_dtype_size = dtype2size.at(dtypes.computeType);
+        auto compute_dtype_size = kDtype2Size.at(dtypes.computeType);
  
         char* host_alpha;
         host_alpha = reinterpret_cast<char*>(malloc(compute_dtype_size));
@@ -445,11 +473,13 @@ int main (int argc, const char* argv[]) {
 
         auto loop = result["l"].as<int>();
 
-        ProfileGemm(param, cuda_algos, all_info + "NA, ", loop);
+        auto select_algo = SetupAlgo(result, "algo", cuda_algos);
+        ProfileGemm(param, select_algo, all_info + "NA, ", loop);
 
         if (prop.major > 6) {
             auto info = TensorCoreRestrictions(param);
-            ProfileGemm(param, tensor_algos, all_info + info, loop);
+            select_algo = SetupAlgo(result, "tensor_algo", tensor_algos);
+            ProfileGemm(param, select_algo, all_info + info, loop);
         }
 
         RUNTIME_API_CALL(cudaFree(dev_A));
