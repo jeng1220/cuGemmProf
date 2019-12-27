@@ -1,5 +1,6 @@
 #include "cxxopts.hpp"
 #include <cublas_v2.h>
+#include <cublasLt.h>
 #include <cuda_runtime.h>
 #include <algorithm>
 #include <map>
@@ -71,7 +72,9 @@ const std::map<cublasOperation_t, std::string> kOperation2Str = {
     ADD_KEY_AND_STR(CUBLAS_OP_T)
 };
 
+const cublasGemmAlgo_t CUBLASLT_HEURISTIC_ALG = static_cast<cublasGemmAlgo_t>(-2);
 const std::map<cublasGemmAlgo_t, std::string> kAlgo2Str = {
+    ADD_KEY_AND_STR(CUBLASLT_HEURISTIC_ALG),
     ADD_KEY_AND_STR(CUBLAS_GEMM_DEFAULT),
     ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO0),
     ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO1),
@@ -138,7 +141,6 @@ struct Param_t {
     void *beta;
     void *C;
     int ldc;
-    //cublasGemmAlgo_t algo;
     Dtypes_t dtype;
 };
 
@@ -207,6 +209,96 @@ std::ostream& operator<<(std::ostream& os, const Result_t& x) {
 
 bool SortResult (const Result_t& x, const Result_t& y) { return (x.time < y.time); }
 
+void ProfileGemmLt(const Param_t& param, const std::string& config_info, int loop) {
+
+    cublasLtHandle_t handle;
+    CUBLAS_API_CALL(cublasLtCreate(&handle));
+
+    cublasLtMatmulDesc_t op_desc;
+    CUBLAS_API_CALL(cublasLtMatmulDescCreate(&op_desc, param.dtype.computeType));
+    CUBLAS_API_CALL(cublasLtMatmulDescSetAttribute(op_desc,
+        CUBLASLT_MATMUL_DESC_TRANSA, &param.transa, sizeof(cublasOperation_t)));
+    CUBLAS_API_CALL(cublasLtMatmulDescSetAttribute(op_desc,
+        CUBLASLT_MATMUL_DESC_TRANSB, &param.transb, sizeof(cublasOperation_t)));
+
+    cublasLtMatrixLayout_t Adesc, Bdesc, Cdesc;
+    CUBLAS_API_CALL(cublasLtMatrixLayoutCreate(
+       &Adesc, param.dtype.Atype,
+       param.transa == CUBLAS_OP_N ? param.m : param.k,
+       param.transa == CUBLAS_OP_N ? param.k : param.m,
+       param.lda));
+    CUBLAS_API_CALL(cublasLtMatrixLayoutCreate(
+       &Bdesc, param.dtype.Btype,
+       param.transb == CUBLAS_OP_N ? param.k : param.n,
+       param.transb == CUBLAS_OP_N ? param.n : param.k,
+       param.ldb));
+    CUBLAS_API_CALL(cublasLtMatrixLayoutCreate(
+        &Cdesc, param.dtype.Ctype, param.m, param.n, param.ldc));
+
+    cublasLtMatmulPreference_t preference;
+    CUBLAS_API_CALL(cublasLtMatmulPreferenceCreate(&preference));
+    size_t workspace_size = 0;
+    CUBLAS_API_CALL(cublasLtMatmulPreferenceSetAttribute(
+        preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+        &workspace_size, sizeof(workspace_size)));
+
+    cublasStatus_t ret;
+    cublasLtMatmulHeuristicResult_t result = {};
+    int nb_result = 0;
+    bool fault = false;
+    ret = cublasLtMatmulAlgoGetHeuristic(
+       handle, op_desc, Adesc, Bdesc, Cdesc, Cdesc, preference,
+       1, &result, &nb_result);
+    if (nb_result == 0) {
+        std::cerr << kErr2Str.at(ret) << std::endl;
+        fault = true;
+    }
+
+    cudaEvent_t start;
+    cudaEvent_t end;
+
+    RUNTIME_API_CALL(cudaEventCreate(&start));
+    RUNTIME_API_CALL(cudaEventCreate(&end));
+    std::vector<Result_t> results;
+    float time = 0.f;
+
+    RUNTIME_API_CALL(cudaEventRecord(start));
+    for (int i = 0; i < loop && !fault; ++i) {
+
+        CUBLAS_API_CALL(cublasLtMatmul(handle, op_desc, 
+                                       param.alpha, param.A, Adesc,
+                                       param.B, Bdesc, param.beta,
+                                       param.C, Cdesc, param.C, Cdesc,
+                                       &result.algo, nullptr, workspace_size, 0));
+    }
+    RUNTIME_API_CALL(cudaEventRecord(end));
+    RUNTIME_API_CALL(cudaEventSynchronize(end));
+    RUNTIME_API_CALL(cudaEventElapsedTime(&time, start, end));
+
+    float gflops = 0;
+    if (!fault) { 
+        time /= loop;
+        float workload = (2.f * param.m * param.n * param.k) * 1e-9;
+        gflops = workload / (time * 1e-3);
+    }
+    else {
+        time = NAN;
+        gflops = NAN;
+    }
+
+    results.push_back(Result_t{CUBLASLT_HEURISTIC_ALG, time, gflops});
+
+    RUNTIME_API_CALL(cudaEventDestroy(start));
+    RUNTIME_API_CALL(cudaEventDestroy(end));
+    CUBLAS_API_CALL(cublasLtMatmulPreferenceDestroy(preference));
+    CUBLAS_API_CALL(cublasLtMatrixLayoutDestroy(Cdesc));
+    CUBLAS_API_CALL(cublasLtMatrixLayoutDestroy(Bdesc));
+    CUBLAS_API_CALL(cublasLtMatrixLayoutDestroy(Adesc));
+    CUBLAS_API_CALL(cublasLtMatmulDescDestroy(op_desc));
+    CUBLAS_API_CALL(cublasLtDestroy(handle));
+    std::cout << config_info << results[0] << std::endl;
+}
+
 void ProfileGemm(const Param_t& param, const std::vector<cublasGemmAlgo_t>& algos,
     const std::string& config_info, int loop) {
 
@@ -261,9 +353,19 @@ void ProfileGemm(const Param_t& param, const std::vector<cublasGemmAlgo_t>& algo
 
     RUNTIME_API_CALL(cudaEventDestroy(start));
     RUNTIME_API_CALL(cudaEventDestroy(end));
-    std::cout << config_info << results[0] << std::endl;
+
     std::sort(results.begin(), results.end(), SortResult);
-    std::cout << config_info << results[0] << std::endl;
+
+    struct PrintInfo {
+        std::string info_;
+        PrintInfo(const std::string& msg) : info_(msg) {}
+        void operator()(Result_t x) {
+            std::cout << info_ << x << std::endl;
+        }
+    };
+
+    PrintInfo functor(config_info);
+    std::for_each(results.begin(), results.end(), functor);
 }
 
 std::string Mask2Str(const std::vector<bool>& mask) {
@@ -304,14 +406,6 @@ std::string TensorCoreRestrictions(const Param_t& param) {
     return Mask2Str(mask);
 }
 
-std::vector<cublasGemmAlgo_t> Int2Algo(const std::vector<int>& select_id, cublasGemmAlgo_t base) {
-    std::vector<cublasGemmAlgo_t> algos;
-    for (auto id : select_id) {
-        algos.push_back(static_cast<cublasGemmAlgo_t>(id + static_cast<int>(base)));
-    }
-    return algos;
-}
-
 std::vector<cublasGemmAlgo_t> SetupAlgo(const cxxopts::ParseResult& parse, const char option[],
     const std::vector<cublasGemmAlgo_t>& all_options) {
 
@@ -321,10 +415,21 @@ std::vector<cublasGemmAlgo_t> SetupAlgo(const cxxopts::ParseResult& parse, const
         }
         else if (parse.count(option)) {
             auto select_id = parse[option].as< std::vector<int> >();
-            select_algo = Int2Algo(select_id, CUBLAS_GEMM_ALGO0);
+
+            struct Int2Algo {
+                cublasGemmAlgo_t base_;
+                Int2Algo(cublasGemmAlgo_t base) : base_(base) {};
+                cublasGemmAlgo_t operator()(int id) {
+                    return static_cast<cublasGemmAlgo_t>(id + static_cast<int>(base_));
+                }
+            };
+            Int2Algo functor(all_options[1]);
+
+            select_algo.resize(select_id.size());
+            std::transform(select_id.begin(), select_id.end(), select_algo.begin(), functor);
         }
         else {
-            select_algo.push_back(CUBLAS_GEMM_DEFAULT);
+            select_algo.push_back(all_options[0]);
         }
         return select_algo;
 }
@@ -481,6 +586,8 @@ int main (int argc, const char* argv[]) {
             select_algo = SetupAlgo(result, "tensor_algo", tensor_algos);
             ProfileGemm(param, select_algo, all_info + info, loop);
         }
+
+        ProfileGemmLt(param, all_info + "NA, ", loop);
 
         RUNTIME_API_CALL(cudaFree(dev_A));
         RUNTIME_API_CALL(cudaFree(dev_B));
