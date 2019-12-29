@@ -5,4 +5,4 @@ all:
 
 .PHONY: clean
 clean:
-	rm -rf cuGemmProf *.obj *.o *.exe
+	rm -rf cuGemmProf *.obj *.o *.exe *.pdb
