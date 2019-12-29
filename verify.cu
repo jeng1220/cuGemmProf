@@ -97,7 +97,7 @@ __global__ void NaiveMatrixTransposeKernel(
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if (x < w && y << h) {
+    if (x < w && y < h) {
         dst[ x * h + y ] = src[ y * w + x ];
     }
 }
@@ -242,15 +242,13 @@ void NaiveGemm(
 
     void* dev_B = B;
     int trans_ldb = ldb;
-    if (transa == CUBLAS_OP_T) {
+    if (transb == CUBLAS_OP_T) {
         RUNTIME_API_CALL(cudaMalloc(&dev_B, k * ldb * sizeof(float) ));
         NaiveMatrixTranspose(ldb, k, B, dev_B, src_type);
         trans_ldb = k;
     }
 
-    void* dev_C = C;
-
-    NaiveGemmNN(m, n, k, dev_A, trans_lda, dev_B, trans_ldb, dev_C, ldc, gemm_type);
+    NaiveGemmNN(m, n, k, dev_A, trans_lda, dev_B, trans_ldb, C, ldc, gemm_type);
     if (dev_A != A) RUNTIME_API_CALL(cudaFree(dev_A));
     if (dev_B != B) RUNTIME_API_CALL(cudaFree(dev_B));
 }
