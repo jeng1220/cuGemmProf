@@ -1,4 +1,5 @@
 #include "cxxopts.hpp"
+#include "verify.h"
 #include <cublas_v2.h>
 #include <cublasLt.h>
 #include <cuda_runtime.h>
@@ -178,7 +179,8 @@ cxxopts::ParseResult Parse(int argc, const char* argv[]) {
                 "5,  {CUDA_R_32F, CUDA_R_32F, CUDA_R_32F, CUDA_R_32F}\n"
                 "6,  {CUDA_R_64F, CUDA_R_64F, CUDA_R_64F, CUDA_R_64F}\n"
                 "7,  {CUDA_C_32F, CUDA_C_8I,  CUDA_C_8I,  CUDA_C_32F}\n"
-                "8,  {CUDA_C_32F, CUDA_C_32F, CUDA_C_32F, CUDA_C_32F}\n";
+                "8,  {CUDA_C_32F, CUDA_C_32F, CUDA_C_32F, CUDA_C_32F}\n"
+                "9,  {CUDA_C_64F, CUDA_C_64F, CUDA_C_64F, CUDA_C_64F}\n";
 
 
     if (result.count("help")) {
@@ -448,6 +450,7 @@ int main (int argc, const char* argv[]) {
         Dtypes_t{CUDA_R_64F, CUDA_R_64F, CUDA_R_64F, CUDA_R_64F},
         Dtypes_t{CUDA_C_32F, CUDA_C_8I,  CUDA_C_8I,  CUDA_C_32F},
         Dtypes_t{CUDA_C_32F, CUDA_C_32F, CUDA_C_32F, CUDA_C_32F},
+        Dtypes_t{CUDA_C_64F, CUDA_C_64F, CUDA_C_64F, CUDA_C_64F},
     };
 
     const std::vector<cublasGemmAlgo_t> cuda_algos = {
@@ -553,10 +556,22 @@ int main (int argc, const char* argv[]) {
 
         void* dev_A;
         RUNTIME_API_CALL(cudaMalloc(&dev_A, param.m * param.k * src_dtype_size));
+        InitMatrix(dev_A,
+            (param.transa == CUBLAS_OP_N) ? param.m : param.k,
+            (param.transa == CUBLAS_OP_N) ? param.k : param.m,
+            param.lda, param.dtype.Atype);
         void* dev_B;
         RUNTIME_API_CALL(cudaMalloc(&dev_B, param.k * param.n * src_dtype_size));
+        InitMatrix(dev_B,
+            (param.transb == CUBLAS_OP_N) ? param.k : param.n,
+            (param.transb == CUBLAS_OP_N) ? param.n : param.k,
+            param.ldb, param.dtype.Btype);
         void* dev_C;
         RUNTIME_API_CALL(cudaMalloc(&dev_C, param.m * param.n * dst_dtype_size));
+        RUNTIME_API_CALL(cudaMemset(dev_C, 0, param.m * param.n * dst_dtype_size));
+        void* dev_D;
+        RUNTIME_API_CALL(cudaMalloc(&dev_D, param.m * param.n * dst_dtype_size));
+        RUNTIME_API_CALL(cudaMemset(dev_D, 0, param.m * param.n * dst_dtype_size));
 
         param.A = dev_A;
         param.B = dev_B;
@@ -564,22 +579,25 @@ int main (int argc, const char* argv[]) {
 
         auto compute_dtype_size = kDtype2Size.at(dtypes.computeType);
  
-        char* host_alpha;
-        host_alpha = reinterpret_cast<char*>(malloc(compute_dtype_size));
-        memset(host_alpha, 0, compute_dtype_size);
-        host_alpha[0] = 1; 
+        void* host_alpha;
+        host_alpha = AllocAlphaScale(dtypes.computeType);
 
-        char* host_beta;
-        host_beta = reinterpret_cast<char*>(malloc(compute_dtype_size));
+        void* host_beta;
+        host_beta = malloc(compute_dtype_size);
         memset(host_beta, 0, compute_dtype_size);
 
-        param.alpha = (void*)host_alpha;
-        param.beta  = (void*)host_beta;
+        param.alpha = host_alpha;
+        param.beta  = host_beta;
 
         auto loop = result["l"].as<int>();
 
         auto select_algo = SetupAlgo(result, "algo", cuda_algos);
         ProfileGemm(param, select_algo, all_info + "NA, ", loop);
+        NaiveGemmNN(param.m, param.n, param.k,
+            param.A, param.lda,
+            param.B, param.ldb,
+            dev_D, param.ldc);
+        Verify((float*)dev_D, (float*)param.C, param.m * param.n);
 
         if (prop.major > 6) {
             auto info = TensorCoreRestrictions(param);
@@ -592,6 +610,7 @@ int main (int argc, const char* argv[]) {
         RUNTIME_API_CALL(cudaFree(dev_A));
         RUNTIME_API_CALL(cudaFree(dev_B));
         RUNTIME_API_CALL(cudaFree(dev_C));
+        RUNTIME_API_CALL(cudaFree(dev_D));
         free(host_alpha);
         free(host_beta);
     }

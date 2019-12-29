@@ -1,2 +1,5 @@
 gemm_perf
-.vscode
+*.vscode
+*.exe
+*.obj
+*.o
