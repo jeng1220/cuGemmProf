@@ -332,10 +332,10 @@ void ProfileGemm(const Param_t& param, const std::vector<cublasGemmAlgo_t>& algo
 
         fault = !Verify((float*)param.D, (float*)param.C, param.m * param.n, param.dtype.Ctype);
         if (fault) {
-            //PrintMatrix((float*)param.A, param.m, param.k, param.lda);
-            //PrintMatrix((float*)param.B, param.k, param.n, param.ldb);
-            //PrintMatrix((float*)param.C, param.m, param.n, param.ldc);
-            //PrintMatrix((float*)param.D, param.m, param.n, param.ldc);
+            PrintMatrix((float*)param.A, param.m, param.k, param.lda);
+            PrintMatrix((float*)param.B, param.k, param.n, param.ldb);
+            PrintMatrix((float*)param.C, param.m, param.n, param.ldc);
+            PrintMatrix((float*)param.D, param.m, param.n, param.ldc);
         }
         RUNTIME_API_CALL(cudaMemset(param.C, 0, param.m * param.n * kDtype2Size.at(param.dtype.Ctype)));
 
@@ -589,11 +589,21 @@ int main (int argc, const char* argv[]) {
 
         param.alpha = host_alpha;
         param.beta  = host_beta;
-
+/*
         NaiveGemmNN(param.m, param.n, param.k,
             param.A, param.lda,
             param.B, param.ldb,
             param.D, param.ldc,
+            dtype_id);
+*/
+        NaiveGemm(
+            param.transa,
+            param.transb,
+            param.m, param.n, param.k,
+            param.A, param.lda,
+            param.B, param.ldb,
+            param.D, param.ldc,
+            param.dtype.Atype,
             dtype_id);
 
         auto loop = result["l"].as<int>();

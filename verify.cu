@@ -9,7 +9,8 @@
 #include <cstdio>
 #include <cassert>
 
-void* AllocAlphaScale(cudaDataType_t dtype) {
+void* AllocAlphaScale(cudaDataType_t dtype)
+{
     void* ptr = nullptr;
     switch (dtype) {
 
@@ -40,8 +41,8 @@ void* AllocAlphaScale(cudaDataType_t dtype) {
 }
 
 template <typename data_t>
-__global__ void InitMatrixKernal(data_t* ptr, int w, int h, int ld) {
-
+__global__ void InitMatrixKernal(data_t* ptr, int w, int h, int ld) 
+{
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
     if (x < ld && y < h) {
@@ -49,8 +50,8 @@ __global__ void InitMatrixKernal(data_t* ptr, int w, int h, int ld) {
     }
 }
 
-void InitMatrix(void* ptr, int w, int h, int ld, cudaDataType_t dtype) {
-
+void InitMatrix(void* ptr, int w, int h, int ld, cudaDataType_t dtype) 
+{
     dim3 block(8, 8);
     dim3 grid;
     grid.x = (ld + block.x - 1) / block.x;
@@ -87,12 +88,63 @@ void InitMatrix(void* ptr, int w, int h, int ld, cudaDataType_t dtype) {
     RUNTIME_API_CALL(cudaStreamSynchronize(0));
 }
 
+template <typename T>
+__global__ void NaiveMatrixTransposeKernel(
+    int w, int h,
+    const T* src, T* dst) 
+{
+
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x < w && y << h) {
+        dst[ x * h + y ] = src[ y * w + x ];
+    }
+}
+
+void NaiveMatrixTranspose(
+    int w, int h,
+    void* src, void* dst,
+    cudaDataType_t dtype)
+{
+
+    dim3 block(8, 8);
+    dim3 grid;
+    grid.x = (w + block.x - 1) / block.x;
+    grid.y = (h + block.y - 1) / block.y;
+
+    switch (dtype) {
+        case CUDA_R_8I:
+            NaiveMatrixTransposeKernel<char><<<grid, block>>>(w, h, reinterpret_cast<char*>(src), reinterpret_cast<char*>(dst));
+            break;
+        case CUDA_R_16F:
+        case CUDA_C_8I:
+            NaiveMatrixTransposeKernel<__half><<<grid, block>>>(w, h, reinterpret_cast<__half*>(src), reinterpret_cast<__half*>(dst));
+            break;
+        case CUDA_R_32I:
+        case CUDA_R_32F:
+            NaiveMatrixTransposeKernel<int><<<grid, block>>>(w, h, reinterpret_cast<int*>(src), reinterpret_cast<int*>(dst));
+            break;
+        case CUDA_R_64F:
+        case CUDA_C_32F:
+            NaiveMatrixTransposeKernel<double><<<grid, block>>>(w, h, reinterpret_cast<double*>(src), reinterpret_cast<double*>(dst));
+            break;
+        case CUDA_C_64F:
+            NaiveMatrixTransposeKernel<double2><<<grid, block>>>(w, h, reinterpret_cast<double2*>(src), reinterpret_cast<double2*>(dst));
+            break;
+        default:
+            assert(false);
+    }
+    RUNTIME_API_CALL(cudaStreamSynchronize(0));
+}
+
 template <typename src_t, typename acc_t, typename dst_t>
 __global__ void NaiveGemmKernelNN(
     int m, int n, int k,
     src_t* A, int lda,
     src_t* B, int ldb,
-    dst_t* C, int ldc) {
+    dst_t* C, int ldc) 
+{
 
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -111,7 +163,8 @@ void NaiveGemmNN(
     void* A, int lda,
     void* B, int ldb,
     void* C, int ldc,
-    int gemm_type) {
+    int gemm_type) 
+{
 
     dim3 block(8, 8);
     dim3 grid;
@@ -167,6 +220,39 @@ void NaiveGemmNN(
             assert(false);
     }
     RUNTIME_API_CALL(cudaStreamSynchronize(0));
+}
+
+void NaiveGemm(
+    cublasOperation_t transa,
+    cublasOperation_t transb,
+    int m, int n, int k,
+    void* A, int lda,
+    void* B, int ldb,
+    void* C, int ldc,
+    cudaDataType_t src_type,
+    int gemm_type) 
+{
+    void* dev_A = A;
+    int trans_lda = lda;
+    if (transa == CUBLAS_OP_T) {
+        RUNTIME_API_CALL(cudaMalloc(&dev_A, m * lda * sizeof(float) ));
+        NaiveMatrixTranspose(lda, m, A, dev_A, src_type);
+        trans_lda = m;
+    }
+
+    void* dev_B = B;
+    int trans_ldb = ldb;
+    if (transa == CUBLAS_OP_T) {
+        RUNTIME_API_CALL(cudaMalloc(&dev_B, k * ldb * sizeof(float) ));
+        NaiveMatrixTranspose(ldb, k, B, dev_B, src_type);
+        trans_ldb = k;
+    }
+
+    void* dev_C = C;
+
+    NaiveGemmNN(m, n, k, dev_A, trans_lda, dev_B, trans_ldb, dev_C, ldc, gemm_type);
+    if (dev_A != A) RUNTIME_API_CALL(cudaFree(dev_A));
+    if (dev_B != B) RUNTIME_API_CALL(cudaFree(dev_B));
 }
 
 template<typename T>
