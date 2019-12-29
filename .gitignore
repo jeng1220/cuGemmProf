@@ -3,3 +3,4 @@ gemm_perf
 *.exe
 *.obj
 *.o
+*.pdb

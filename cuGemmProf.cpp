@@ -1,8 +1,8 @@
 #include "cxxopts.hpp"
+#include "macro.h"
 #include "verify.h"
 #include <cublas_v2.h>
 #include <cublasLt.h>
-#include <cuda_runtime.h>
 #include <algorithm>
 #include <map>
 #include <string>
@@ -11,16 +11,6 @@
 #include <cstring>
 #include <cfloat>
 #include <cstdint>
-
-#define RUNTIME_API_CALL(apiFuncCall)                                          \
-do {                                                                           \
-    cudaError_t _status = apiFuncCall;                                         \
-    if (_status != cudaSuccess) {                                              \
-        fprintf(stderr, "%s:%d: error: function %s failed with error %s.\n",   \
-            __FILE__, __LINE__, #apiFuncCall, cudaGetErrorString(_status));    \
-        exit(EXIT_FAILURE);                                                    \
-    }                                                                          \
-} while (0)
 
 #define ADD_KEY_AND_STR(x) {x, #x}
 
@@ -143,6 +133,7 @@ struct Param_t {
     void *C;
     int ldc;
     Dtypes_t dtype;
+    void *D;
 };
 
 cxxopts::ParseResult Parse(int argc, const char* argv[]) {
@@ -339,6 +330,15 @@ void ProfileGemm(const Param_t& param, const std::vector<cublasGemmAlgo_t>& algo
         RUNTIME_API_CALL(cudaEventSynchronize(end));
         RUNTIME_API_CALL(cudaEventElapsedTime(&time, start, end));
 
+        fault = !Verify((float*)param.D, (float*)param.C, param.m * param.n, param.dtype.Ctype);
+        if (fault) {
+            //PrintMatrix((float*)param.A, param.m, param.k, param.lda);
+            //PrintMatrix((float*)param.B, param.k, param.n, param.ldb);
+            //PrintMatrix((float*)param.C, param.m, param.n, param.ldc);
+            //PrintMatrix((float*)param.D, param.m, param.n, param.ldc);
+        }
+        RUNTIME_API_CALL(cudaMemset(param.C, 0, param.m * param.n * kDtype2Size.at(param.dtype.Ctype)));
+
         float gflops = 0;
         if (!fault) { 
             time /= loop;
@@ -346,7 +346,7 @@ void ProfileGemm(const Param_t& param, const std::vector<cublasGemmAlgo_t>& algo
             gflops = workload / (time * 1e-3);
         }
         else {
-            time = NAN;
+            time = FLT_MAX;
             gflops = NAN;
         }
 
@@ -576,6 +576,7 @@ int main (int argc, const char* argv[]) {
         param.A = dev_A;
         param.B = dev_B;
         param.C = dev_C;
+        param.D = dev_D;
 
         auto compute_dtype_size = kDtype2Size.at(dtypes.computeType);
  
@@ -589,15 +590,16 @@ int main (int argc, const char* argv[]) {
         param.alpha = host_alpha;
         param.beta  = host_beta;
 
+        NaiveGemmNN(param.m, param.n, param.k,
+            param.A, param.lda,
+            param.B, param.ldb,
+            param.D, param.ldc,
+            dtype_id);
+
         auto loop = result["l"].as<int>();
 
         auto select_algo = SetupAlgo(result, "algo", cuda_algos);
         ProfileGemm(param, select_algo, all_info + "NA, ", loop);
-        NaiveGemmNN(param.m, param.n, param.k,
-            param.A, param.lda,
-            param.B, param.ldb,
-            dev_D, param.ldc);
-        Verify((float*)dev_D, (float*)param.C, param.m * param.n);
 
         if (prop.major > 6) {
             auto info = TensorCoreRestrictions(param);

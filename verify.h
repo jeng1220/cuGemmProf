@@ -6,5 +6,7 @@ void NaiveGemmNN(
     int m, int n, int k,
     void* A, int lda,
     void* B, int ldb,
-    void* C, int ldc);
-void Verify(float* x, float* y, int count);
+    void* C, int ldc,
+    int gemm_type);
+bool Verify(void* x, void* y, int count, cudaDataType_t dtype);
+void PrintMatrix(float* dev_ptr, int w, int h, int ld);
