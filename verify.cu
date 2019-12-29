@@ -16,7 +16,7 @@ void* AllocAlphaScale(cudaDataType_t dtype) {
             break;
         case CUDA_R_16F:
             ptr = malloc(2);
-            *(reinterpret_cast<half*>(ptr)) = static_cast<half>(1.f);
+            *(reinterpret_cast<__half*>(ptr)) = __float2half(1.f);
             break;
         case CUDA_R_32I:
             ptr = malloc(4);
@@ -59,7 +59,7 @@ void InitMatrix(void* ptr, int w, int h, int ld, cudaDataType_t dtype) {
             InitMatrixKernal<char><<<grid, block>>>(reinterpret_cast<char*>(ptr), w, h, ld);
             break;
         case CUDA_R_16F:
-            InitMatrixKernal<half><<<grid, block>>>(reinterpret_cast<half*>(ptr), w, h, ld);
+            InitMatrixKernal<__half><<<grid, block>>>(reinterpret_cast<__half*>(ptr), w, h, ld);
             break;
         case CUDA_R_32F:
             InitMatrixKernal<float><<<grid, block>>>(reinterpret_cast<float*>(ptr), w, h, ld);
