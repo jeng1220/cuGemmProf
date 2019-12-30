@@ -219,6 +219,26 @@ void NaiveGemmNN(
     RUNTIME_API_CALL(cudaStreamSynchronize(0));
 }
 
+int GetGemmTypeId(cudaDataType_t compute_type,
+    cudaDataType_t src_type, cudaDataType_t dst_type) 
+{
+    switch (compute_type) {
+        case CUDA_R_16F: return 0;
+        case CUDA_R_32I: return 1;
+        case CUDA_R_32F:
+            switch (src_type) {
+                case CUDA_R_16F: return (dst_type == CUDA_R_16F) ? 2 : 4;
+                case CUDA_R_8I: return 3;
+                case CUDA_R_32F: return 5;
+                default: assert(false);
+            }
+        case CUDA_R_64F: return 6;
+
+    }
+    assert(false);
+    return -1;
+}
+
 void NaiveGemm(
     cublasOperation_t transa,
     cublasOperation_t transb,
