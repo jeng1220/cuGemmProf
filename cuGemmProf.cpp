@@ -234,6 +234,17 @@ void ProfileGemmLt(const Param_t& param, const std::string& config_info, int loo
     RUNTIME_API_CALL(cudaEventSynchronize(end));
     RUNTIME_API_CALL(cudaEventElapsedTime(&time, start, end));
 
+    if (!fault) {
+        fault = !Verify(param.C, param.D, param.m * param.n, param.dtype.Ctype);
+        if (fault) {
+            PrintMatrix(param.A, param.m, param.k, param.lda, param.dtype.Atype);
+            PrintMatrix(param.B, param.k, param.n, param.ldb, param.dtype.Btype);
+            PrintMatrix(param.C, param.m, param.n, param.ldc, param.dtype.Ctype);
+            PrintMatrix(param.D, param.m, param.n, param.ldc, param.dtype.Ctype);
+        }
+    }
+    RUNTIME_API_CALL(cudaMemset(param.C, 0, param.m * param.n * Dtype2Size(param.dtype.Ctype)));
+
     float gflops = 0;
     if (!fault) { 
         time /= loop;
@@ -241,7 +252,7 @@ void ProfileGemmLt(const Param_t& param, const std::string& config_info, int loo
         gflops = workload / (time * 1e-3);
     }
     else {
-        time = NAN;
+        time = FLT_MAX;
         gflops = NAN;
     }
 
@@ -284,11 +295,12 @@ void ProfileGemm(const Param_t& param, const std::vector<cublasGemmAlgo_t>& algo
                                param.B, param.dtype.Btype, param.ldb, param.beta,
                                param.C, param.dtype.Ctype, param.ldc,
                                param.dtype.computeType, algo);
-            if (ret != CUBLAS_STATUS_SUCCESS && 
-                ret != CUBLAS_STATUS_NOT_SUPPORTED &&
-                ret != CUBLAS_STATUS_INVALID_VALUE) {
+            if (ret != CUBLAS_STATUS_SUCCESS) {
                 fault = true;
-                CUBLAS_API_CALL(ret);
+                if (ret != CUBLAS_STATUS_NOT_SUPPORTED &&
+                    ret != CUBLAS_STATUS_INVALID_VALUE) {
+                    CUBLAS_API_CALL(ret);
+                }
                 break;
             }
         }
@@ -296,12 +308,14 @@ void ProfileGemm(const Param_t& param, const std::vector<cublasGemmAlgo_t>& algo
         RUNTIME_API_CALL(cudaEventSynchronize(end));
         RUNTIME_API_CALL(cudaEventElapsedTime(&time, start, end));
 
-        fault = !Verify(param.C, param.D, param.m * param.n, param.dtype.Ctype);
-        if (fault) {
-            PrintMatrix(param.A, param.m, param.k, param.lda, param.dtype.Atype);
-            PrintMatrix(param.B, param.k, param.n, param.ldb, param.dtype.Btype);
-            PrintMatrix(param.C, param.m, param.n, param.ldc, param.dtype.Ctype);
-            PrintMatrix(param.D, param.m, param.n, param.ldc, param.dtype.Ctype);
+        if (!fault) {
+            fault = !Verify(param.C, param.D, param.m * param.n, param.dtype.Ctype);
+            if (fault) {
+                PrintMatrix(param.A, param.m, param.k, param.lda, param.dtype.Atype);
+                PrintMatrix(param.B, param.k, param.n, param.ldb, param.dtype.Btype);
+                PrintMatrix(param.C, param.m, param.n, param.ldc, param.dtype.Ctype);
+                PrintMatrix(param.D, param.m, param.n, param.ldc, param.dtype.Ctype);
+            }
         }
         RUNTIME_API_CALL(cudaMemset(param.C, 0, param.m * param.n * Dtype2Size(param.dtype.Ctype)));
 
