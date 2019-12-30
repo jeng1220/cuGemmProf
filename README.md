@@ -13,11 +13,11 @@ $ make
 
 ## run ##
 ```sh
-$ ./gemm_prof --help
-$ ./gemm_prof -m 128 -n 64 -k 1024 --type 5,6 -l 10
-$ ./gemm_prof -m 128 -n 64 -k 1024 --type 5,6 -l 10 --algo 3,5
-$ ./gemm_prof -m 128 -n 64 -k 1024 --type 5,6 -l 10 --algo 3,5 --tensor_algo 11,7
-$ ./gemm_prof -m 128 -n 64 -k 1024 --type 5,6 -l 10 --all_algo
+$ ./cuGemmProf --help
+$ ./cuGemmProf -m 128 -n 64 -k 1024 --type 5,6 -l 10
+$ ./cuGemmProf -m 128 -n 64 -k 1024 --type 5,6 -l 10 --algo 3,5
+$ ./cuGemmProf -m 128 -n 64 -k 1024 --type 5,6 -l 10 --algo 3,5 --tensor_algo 11,7
+$ ./cuGemmProf -m 128 -n 64 -k 1024 --type 5,6 -l 10 --all_algo
 ```
 
 ## available options ##
