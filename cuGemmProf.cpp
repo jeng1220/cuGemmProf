@@ -1,4 +1,5 @@
 #include "cxxopts.hpp"
+#include "helper.h"
 #include "macro.h"
 #include "verify.h"
 #include <cublas_v2.h>
@@ -12,30 +13,6 @@
 #include <cfloat>
 #include <cstdint>
 
-#define ADD_KEY_AND_STR(x) {x, #x}
-
-const std::map<cublasStatus_t, std::string> kErr2Str = {
-    ADD_KEY_AND_STR(CUBLAS_STATUS_NOT_INITIALIZED),
-    ADD_KEY_AND_STR(CUBLAS_STATUS_ALLOC_FAILED),
-    ADD_KEY_AND_STR(CUBLAS_STATUS_INVALID_VALUE),
-    ADD_KEY_AND_STR(CUBLAS_STATUS_ARCH_MISMATCH),
-    ADD_KEY_AND_STR(CUBLAS_STATUS_MAPPING_ERROR),
-    ADD_KEY_AND_STR(CUBLAS_STATUS_EXECUTION_FAILED),
-    ADD_KEY_AND_STR(CUBLAS_STATUS_INTERNAL_ERROR),
-    ADD_KEY_AND_STR(CUBLAS_STATUS_NOT_SUPPORTED),
-    ADD_KEY_AND_STR(CUBLAS_STATUS_LICENSE_ERROR)
-};
-
-#define CUBLAS_API_CALL(apiFuncCall)                                            \
-do {                                                                            \
-    cublasStatus_t _status = apiFuncCall;                                       \
-    if (_status != CUBLAS_STATUS_SUCCESS) {                                     \
-        fprintf(stderr, "%s:%d: error: function %s failed with error %s.\n",    \
-            __FILE__, __LINE__, #apiFuncCall, kErr2Str.at(_status).c_str());    \
-        exit(EXIT_FAILURE);                                                     \
-    }                                                                           \
-} while (0)
-
 const std::map<cudaDataType_t, std::string> kDtype2Str = {
     ADD_KEY_AND_STR(CUDA_R_8I),
     ADD_KEY_AND_STR(CUDA_R_16F),
@@ -45,17 +22,6 @@ const std::map<cudaDataType_t, std::string> kDtype2Str = {
     ADD_KEY_AND_STR(CUDA_C_8I),
     ADD_KEY_AND_STR(CUDA_C_32F),
     ADD_KEY_AND_STR(CUDA_C_64F)
-};
-
-const std::map<cudaDataType_t, int> kDtype2Size = {
-    {CUDA_R_8I,   1},
-    {CUDA_R_16F,  2},
-    {CUDA_R_32I,  4},
-    {CUDA_R_32F,  4},
-    {CUDA_R_64F,  8},
-    {CUDA_C_8I,   2},
-    {CUDA_C_32F,  8},
-    {CUDA_C_64F, 16}
 };
 
 const std::map<cublasOperation_t, std::string> kOperation2Str = {
@@ -243,7 +209,7 @@ void ProfileGemmLt(const Param_t& param, const std::string& config_info, int loo
        handle, op_desc, Adesc, Bdesc, Cdesc, Cdesc, preference,
        1, &result, &nb_result);
     if (nb_result == 0) {
-        std::cerr << kErr2Str.at(ret) << std::endl;
+        std::cerr << cublasGetErrorString(ret) << std::endl;
         fault = true;
     }
 
@@ -339,7 +305,7 @@ void ProfileGemm(const Param_t& param, const std::vector<cublasGemmAlgo_t>& algo
             PrintMatrix((float*)param.D, param.m, param.n, param.ldc);
             */
         }
-        RUNTIME_API_CALL(cudaMemset(param.C, 0, param.m * param.n * kDtype2Size.at(param.dtype.Ctype)));
+        RUNTIME_API_CALL(cudaMemset(param.C, 0, param.m * param.n * Dtype2Size(param.dtype.Ctype)));
 
         float gflops = 0;
         if (!fault) { 
@@ -404,9 +370,9 @@ std::string TensorCoreRestrictions(const Param_t& param) {
     mask[2] = reinterpret_cast<intptr_t>(param.A) % 16 == 0;
     mask[3] = reinterpret_cast<intptr_t>(param.B) % 16 == 0;
     mask[4] = reinterpret_cast<intptr_t>(param.C) % 16 == 0;
-    mask[5] = param.lda % (16 / kDtype2Size.at(param.dtype.Atype)) == 0;
-    mask[6] = param.ldb % (16 / kDtype2Size.at(param.dtype.Btype)) == 0;
-    mask[7] = param.ldc % (16 / kDtype2Size.at(param.dtype.Ctype)) == 0;
+    mask[5] = param.lda % (16 / Dtype2Size(param.dtype.Atype)) == 0;
+    mask[6] = param.ldb % (16 / Dtype2Size(param.dtype.Btype)) == 0;
+    mask[7] = param.ldc % (16 / Dtype2Size(param.dtype.Ctype)) == 0;
     return Mask2Str(mask);
 }
 
@@ -553,8 +519,8 @@ int main (int argc, const char* argv[]) {
             all_info += "NA, ";
         }
 
-        auto src_dtype_size = kDtype2Size.at(dtypes.Atype);
-        auto dst_dtype_size = kDtype2Size.at(dtypes.Ctype);
+        auto src_dtype_size = Dtype2Size(dtypes.Atype);
+        auto dst_dtype_size = Dtype2Size(dtypes.Ctype);
 
         void* dev_A;
         RUNTIME_API_CALL(cudaMalloc(&dev_A, param.m * param.k * src_dtype_size));
@@ -580,7 +546,7 @@ int main (int argc, const char* argv[]) {
         param.C = dev_C;
         param.D = dev_D;
 
-        auto compute_dtype_size = kDtype2Size.at(dtypes.computeType);
+        auto compute_dtype_size = Dtype2Size(dtypes.computeType);
  
         void* host_alpha;
         host_alpha = AllocAlphaScale(dtypes.computeType);

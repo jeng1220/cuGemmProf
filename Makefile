@@ -1,6 +1,6 @@
 CC:=nvcc
 exe:=cuGemmProf
-obj:=cuGemmProf.o verify.o
+obj:=cuGemmProf.o verify.o helper.o
 inc:=-I./cxxopts/include -I/usr/local/cuda/include
 lib:=-L/usr/local/cuda/lib64 -lcublasLt -lcublas -lcudart
 flags:=-O3 -std=c++11

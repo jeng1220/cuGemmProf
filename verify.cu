@@ -1,10 +1,12 @@
 #include "macro.h"
+#include "helper.h"
 #include "verify.h"
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
 #include <thrust/inner_product.h>
 #include <cuda_fp16.h>
 #include <iostream>
+#include <map>
 #include <cstdlib>
 #include <cstdio>
 #include <cassert>
@@ -12,26 +14,21 @@
 void* AllocAlphaScale(cudaDataType_t dtype)
 {
     void* ptr = nullptr;
+    ptr = malloc(Dtype2Size(dtype));
     switch (dtype) {
-
         case CUDA_R_8I:
-            ptr = malloc(1);
             *(reinterpret_cast<char*>(ptr)) = 1;
             break;
         case CUDA_R_16F:
-            ptr = malloc(2);
             *(reinterpret_cast<__half*>(ptr)) = __float2half(1.f);
             break;
         case CUDA_R_32I:
-            ptr = malloc(4);
             *(reinterpret_cast<int*>(ptr)) = 1;
             break;
         case CUDA_R_32F:
-            ptr = malloc(4);
             *(reinterpret_cast<float*>(ptr)) = 1.f;
             break;
         case CUDA_R_64F:
-            ptr = malloc(8);
             *(reinterpret_cast<double*>(ptr)) = 1.0;
             break;
         default:
@@ -232,10 +229,11 @@ void NaiveGemm(
     cudaDataType_t src_type,
     int gemm_type) 
 {
+    int src_dtype_size = Dtype2Size(src_type);
     void* dev_A = A;
     int trans_lda = lda;
     if (transa == CUBLAS_OP_T) {
-        RUNTIME_API_CALL(cudaMalloc(&dev_A, m * lda * sizeof(float) ));
+        RUNTIME_API_CALL(cudaMalloc(&dev_A, m * lda * src_dtype_size));
         NaiveMatrixTranspose(lda, m, A, dev_A, src_type);
         trans_lda = m;
     }
@@ -243,7 +241,7 @@ void NaiveGemm(
     void* dev_B = B;
     int trans_ldb = ldb;
     if (transb == CUBLAS_OP_T) {
-        RUNTIME_API_CALL(cudaMalloc(&dev_B, k * ldb * sizeof(float) ));
+        RUNTIME_API_CALL(cudaMalloc(&dev_B, k * ldb * src_dtype_size));
         NaiveMatrixTranspose(ldb, k, B, dev_B, src_type);
         trans_ldb = k;
     }
