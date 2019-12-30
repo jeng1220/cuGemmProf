@@ -1,7 +1,16 @@
-all:
-	nvcc -O3 -c -I/usr/local/cuda/include ./verify.cu -o verify.o
-	nvcc -O3 -c -std=c++11 -I./cxxopts/include -I/usr/local/cuda/include ./cuGemmProf.cpp -o cuGemmProf.o
-	nvcc -O3 -std=c++11 ./cuGemmProf.o verify.o -L/usr/local/cuda/lib64 -lcublasLt -lcublas -lcudart -o cuGemmProf
+CC:=nvcc
+exe:=cuGemmProf
+obj:=cuGemmProf.o verify.o
+inc:=-I./cxxopts/include -I/usr/local/cuda/include
+lib:=-L/usr/local/cuda/lib64 -lcublasLt -lcublas -lcudart
+flags:=-O3 -std=c++11
+
+all:$(obj)
+	$(CC) $(lib) $(obj) -o $(exe)
+%.o:%.cpp
+	$(CC) -c $(flags) $(inc) $^ -o $@
+%.o:%.cu
+	$(CC) -c $(flags) $(inc)  $^ -o $@
 
 .PHONY: clean
 clean:
