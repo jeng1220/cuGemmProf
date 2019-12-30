@@ -312,6 +312,28 @@ bool VerifyT(const void* x_ptr, const void* y_ptr, int count) {
     }
 }
 
+template <>
+bool VerifyT<half>(const void* x_ptr, const void* y_ptr, int count) {
+    auto x = reinterpret_cast<const half*>(x_ptr);
+    auto y = reinterpret_cast<const half*>(y_ptr);
+
+    float init = 0;
+    thrust::maximum<float> binary_op1;
+    AbsMinus<half> binary_op2;
+
+    auto result = thrust::inner_product(thrust::device, 
+        x, x + count, y, init, binary_op1, binary_op2);
+
+    if (static_cast<double>(result) > 1e-6) {
+        //std::cerr << "error: " << result << std::endl;
+        return false;
+    }
+    else {
+        //std::cout << "PASSED" << std::endl;
+        return true;
+    }
+}
+
 std::ostream& operator<<(std::ostream& os, const half& x) {
     os << __half2float(x);
     return os;
