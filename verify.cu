@@ -147,7 +147,7 @@ void NaiveMatrixTranspose(
     RUNTIME_API_CALL(cudaStreamSynchronize(0));
 }
 
-template <typename src_t, typename acc_t, typename dst_t>
+template <typename acc_t, typename src_t, typename dst_t>
 __global__ void NaiveGemmKernelNN(
     int m, int n, int k,
     const void* A_ptr, int lda,
@@ -184,23 +184,23 @@ void NaiveGemmNN(
     grid.y = (n + block.y - 1) / block.y;
     switch (gemm_type) {
         case 0: // CUDA_R_16F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F
-            NaiveGemmKernelNN<half, float, half><<<grid, block>>>(m, n, k,
+            NaiveGemmKernelNN<half, half, half><<<grid, block>>>(m, n, k,
                 A, lda, B, ldb, C, ldc);
             break;
         case 1: // CUDA_R_32I, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32I
-            NaiveGemmKernelNN<char, int, int><<<grid, block>>>(m, n, k,
+            NaiveGemmKernelNN<int, char, int><<<grid, block>>>(m, n, k,
                 A, lda, B, ldb, C, ldc);
             break;
         case 2: // CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F
-            NaiveGemmKernelNN<half, float, half><<<grid, block>>>(m, n, k,
+            NaiveGemmKernelNN<float, half, half><<<grid, block>>>(m, n, k,
                 A, lda, B, ldb, C, ldc);
             break;
         case 3: // CUDA_R_32F, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32F
-            NaiveGemmKernelNN<char, float, float><<<grid, block>>>(m, n, k,
+            NaiveGemmKernelNN<float, char, float><<<grid, block>>>(m, n, k,
                 A, lda, B, ldb, C, ldc);
             break;
         case 4: // CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_32F
-            NaiveGemmKernelNN<half, float, float><<<grid, block>>>(m, n, k,
+            NaiveGemmKernelNN<float, half, float><<<grid, block>>>(m, n, k,
                 A, lda, B, ldb, C, ldc);
             break;
         case 5: // CUDA_R_32F, CUDA_R_32F, CUDA_R_32F, CUDA_R_32F
@@ -212,7 +212,7 @@ void NaiveGemmNN(
                 A, lda, B, ldb, C, ldc);
             break;
         case 7: // CUDA_C_32F, CUDA_C_8I,  CUDA_C_8I,  CUDA_C_32F
-            NaiveGemmKernelNN< thrust::complex<char>, thrust::complex<float>, thrust::complex<float> ><<<grid, block>>>(m, n, k,
+            NaiveGemmKernelNN< thrust::complex<float>, thrust::complex<char>, thrust::complex<float> ><<<grid, block>>>(m, n, k,
                 A, lda, B, ldb, C, ldc);
             break;
         case 8: // CUDA_C_32F, CUDA_C_32F, CUDA_C_32F, CUDA_C_32F

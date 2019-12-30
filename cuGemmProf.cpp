@@ -81,6 +81,12 @@ struct Dtypes_t {
     cudaDataType_t Atype;
     cudaDataType_t Btype;
     cudaDataType_t Ctype;
+    std::string GetDtypeInfo() {
+        return kDtype2Str.at(computeType) + ", "
+             + kDtype2Str.at(Atype) + ", "
+             + kDtype2Str.at(Btype) + ", "
+             + kDtype2Str.at(Ctype) + ", ";
+    }
 };
 
 struct Param_t {
@@ -100,6 +106,13 @@ struct Param_t {
     int ldc;
     Dtypes_t dtype;
     void *D;
+    std::string GetDimsInfo(void) {
+        return kOperation2Str.at(transa) + ", "
+             + kOperation2Str.at(transb) + ", "
+             + std::to_string(m) + ", "
+             + std::to_string(n) + ", "
+             + std::to_string(k) + ", ";
+    }
 };
 
 cxxopts::ParseResult Parse(int argc, const char* argv[]) {
@@ -499,17 +512,12 @@ int main (int argc, const char* argv[]) {
     param.ldb = (param.transb == CUBLAS_OP_N) ? param.k : param.n;
     param.ldc = param.m;
 
-    std::cout << "device, op(A), op(B), m, n, k, Atype, Btype, Ctype, "
-        "ComputeType, Dp4aRestrictions(lda.ldb), TensorCoreRestrictions(m.k.A.B.C.lda.ldb.ldc), "
+    std::cout << "device, op(A), op(B), m, n, k, ComputeType, Atype, Btype, Ctype, "
+        "Dp4aRestrictions(lda.ldb), TensorCoreRestrictions(m.k.A.B.C.lda.ldb.ldc), "
         "algo, time(ms), GFLOPS" << std::endl;
 
     std::string dims_info;
-    dims_info = std::string(prop.name) + ", "
-            + kOperation2Str.at(param.transa) + ", "
-            + kOperation2Str.at(param.transb) + ", "
-            + std::to_string(param.m) + ", "
-            + std::to_string(param.n) + ", "
-            + std::to_string(param.k) + ", ";
+    dims_info = std::string(prop.name) + ", " + param.GetDimsInfo();
 
     auto selected_dtypes = result["type"].as< std::vector<int> >();
 
@@ -519,11 +527,8 @@ int main (int argc, const char* argv[]) {
         param.dtype = dtypes;
 
         std::string all_info;
-        all_info = dims_info
-           + kDtype2Str.at(param.dtype.Atype) + ", "
-           + kDtype2Str.at(param.dtype.Btype) + ", "
-           + kDtype2Str.at(param.dtype.Ctype) + ", "
-           + kDtype2Str.at(param.dtype.computeType) + ", ";
+        all_info = dims_info + param.dtype.GetDtypeInfo();
+
         if (param.dtype.Atype == CUDA_R_8I) {
             all_info += Dp4aRestrictions(param);
         }
