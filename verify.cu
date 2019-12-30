@@ -1,6 +1,7 @@
 #include "macro.h"
 #include "helper.h"
 #include "verify.h"
+#include <thrust/complex.h>
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
 #include <thrust/inner_product.h>
@@ -10,6 +11,8 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cassert>
+
+
 
 void* AllocAlphaScale(cudaDataType_t dtype)
 {
@@ -30,6 +33,15 @@ void* AllocAlphaScale(cudaDataType_t dtype)
             break;
         case CUDA_R_64F:
             *(reinterpret_cast<double*>(ptr)) = 1.0;
+            break;
+        case CUDA_C_8I:
+            *(reinterpret_cast< thrust::complex<char>* >(ptr)) = 1;
+            break;
+        case CUDA_C_32F:
+            *(reinterpret_cast< thrust::complex<float>* >(ptr)) = 1.f;
+            break;
+        case CUDA_C_64F:
+            *(reinterpret_cast< thrust::complex<double>* >(ptr)) = 1.0;
             break;
         default:
             assert(false);
@@ -69,16 +81,13 @@ void InitMatrix(void* ptr, int w, int h, int ld, cudaDataType_t dtype)
         case CUDA_R_64F:
             InitMatrixKernal<double><<<grid, block>>>(ptr, w, h, ld);
         case CUDA_C_8I:
-            grid.x = (2 * ld + block.x - 1) / block.x;
-            InitMatrixKernal<char><<<grid, block>>>(ptr, w, h, ld);
+            InitMatrixKernal< thrust::complex<char> ><<<grid, block>>>(ptr, w, h, ld);
             break;
         case CUDA_C_32F:
-            grid.x = (2 * ld + block.x - 1) / block.x;
-            InitMatrixKernal<float><<<grid, block>>>(ptr, w, h, ld);
+            InitMatrixKernal< thrust::complex<float> ><<<grid, block>>>(ptr, w, h, ld);
             break;
         case CUDA_C_64F:
-            grid.x = (2 * ld + block.x - 1) / block.x;
-            InitMatrixKernal<double><<<grid, block>>>(ptr, w, h, ld);
+            InitMatrixKernal< thrust::complex<double> ><<<grid, block>>>(ptr, w, h, ld);
             break;
         default:
             assert(false);
@@ -203,8 +212,17 @@ void NaiveGemmNN(
                 A, lda, B, ldb, C, ldc);
             break;
         case 7: // CUDA_C_32F, CUDA_C_8I,  CUDA_C_8I,  CUDA_C_32F
+            NaiveGemmKernelNN< thrust::complex<char>, thrust::complex<float>, thrust::complex<float> ><<<grid, block>>>(m, n, k,
+                A, lda, B, ldb, C, ldc);
+            break;
         case 8: // CUDA_C_32F, CUDA_C_32F, CUDA_C_32F, CUDA_C_32F
+            NaiveGemmKernelNN< thrust::complex<float>, thrust::complex<float>, thrust::complex<float> ><<<grid, block>>>(m, n, k,
+                A, lda, B, ldb, C, ldc);
+            break;
         case 9: // CUDA_C_64F, CUDA_C_64F, CUDA_C_64F, CUDA_C_64F
+            NaiveGemmKernelNN< thrust::complex<double>, thrust::complex<double>, thrust::complex<double> ><<<grid, block>>>(m, n, k,
+                A, lda, B, ldb, C, ldc);
+            break;
         default:
             assert(false);
     }
