@@ -20,7 +20,7 @@ void* AllocAlphaScale(cudaDataType_t dtype)
             *(reinterpret_cast<char*>(ptr)) = 1;
             break;
         case CUDA_R_16F:
-            *(reinterpret_cast<__half*>(ptr)) = __float2half(1.f);
+            *(reinterpret_cast<half*>(ptr)) = 1.f;
             break;
         case CUDA_R_32I:
             *(reinterpret_cast<int*>(ptr)) = 1;
@@ -43,7 +43,7 @@ __global__ void InitMatrixKernal(data_t* ptr, int w, int h, int ld)
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
     if (x < ld && y < h) {
-        ptr[y * ld + x] = (x < w) ? static_cast<data_t>(threadIdx.y * blockDim.x + threadIdx.x) : 0;
+        ptr[y * ld + x] = (x < w) ? (threadIdx.y * blockDim.x + threadIdx.x) : 0;
     }
 }
 
@@ -60,7 +60,7 @@ void InitMatrix(void* ptr, int w, int h, int ld, cudaDataType_t dtype)
             InitMatrixKernal<char><<<grid, block>>>(reinterpret_cast<char*>(ptr), w, h, ld);
             break;
         case CUDA_R_16F:
-            InitMatrixKernal<__half><<<grid, block>>>(reinterpret_cast<__half*>(ptr), w, h, ld);
+            InitMatrixKernal<half><<<grid, block>>>(reinterpret_cast<half*>(ptr), w, h, ld);
             break;
         case CUDA_R_32F:
             InitMatrixKernal<float><<<grid, block>>>(reinterpret_cast<float*>(ptr), w, h, ld);
@@ -116,7 +116,7 @@ void NaiveMatrixTranspose(
             break;
         case CUDA_R_16F:
         case CUDA_C_8I:
-            NaiveMatrixTransposeKernel<__half><<<grid, block>>>(w, h, reinterpret_cast<__half*>(src), reinterpret_cast<__half*>(dst));
+            NaiveMatrixTransposeKernel<half><<<grid, block>>>(w, h, reinterpret_cast<half*>(src), reinterpret_cast<half*>(dst));
             break;
         case CUDA_R_32I:
         case CUDA_R_32F:
@@ -169,45 +169,45 @@ void NaiveGemmNN(
     grid.y = (n + block.y - 1) / block.y;
     switch (gemm_type) {
         case 0: // CUDA_R_16F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F
-            NaiveGemmKernelNN<__half, float, __half><<<grid, block>>>(m, n, k,
-                reinterpret_cast<__half*>(A), lda, 
-                reinterpret_cast<__half*>(B), ldb, 
-                reinterpret_cast<__half*>(C), ldc);
+            NaiveGemmKernelNN<half, float, half><<<grid, block>>>(m, n, k,
+                reinterpret_cast<half*>(A), lda,
+                reinterpret_cast<half*>(B), ldb,
+                reinterpret_cast<half*>(C), ldc);
             break;
         case 1: // CUDA_R_32I, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32I
             NaiveGemmKernelNN<char, int, int><<<grid, block>>>(m, n, k,
-                reinterpret_cast<char*>(A), lda, 
-                reinterpret_cast<char*>(B), ldb, 
+                reinterpret_cast<char*>(A), lda,
+                reinterpret_cast<char*>(B), ldb,
                 reinterpret_cast<int*>(C), ldc);
             break;
         case 2: // CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F
-            NaiveGemmKernelNN<__half, float, __half><<<grid, block>>>(m, n, k,
-                reinterpret_cast<__half*>(A), lda, 
-                reinterpret_cast<__half*>(B), ldb, 
-                reinterpret_cast<__half*>(C), ldc);
+            NaiveGemmKernelNN<half, float, half><<<grid, block>>>(m, n, k,
+                reinterpret_cast<half*>(A), lda,
+                reinterpret_cast<half*>(B), ldb,
+                reinterpret_cast<half*>(C), ldc);
             break;
         case 3: // CUDA_R_32F, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32F
             NaiveGemmKernelNN<char, float, float><<<grid, block>>>(m, n, k,
-                reinterpret_cast<char*>(A), lda, 
-                reinterpret_cast<char*>(B), ldb, 
+                reinterpret_cast<char*>(A), lda,
+                reinterpret_cast<char*>(B), ldb,
                 reinterpret_cast<float*>(C), ldc);
             break;
         case 4: // CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_32F
-            NaiveGemmKernelNN<__half, float, float><<<grid, block>>>(m, n, k,
-                reinterpret_cast<__half*>(A), lda, 
-                reinterpret_cast<__half*>(B), ldb, 
+            NaiveGemmKernelNN<half, float, float><<<grid, block>>>(m, n, k,
+                reinterpret_cast<half*>(A), lda,
+                reinterpret_cast<half*>(B), ldb,
                 reinterpret_cast<float*>(C), ldc);
             break;
         case 5: // CUDA_R_32F, CUDA_R_32F, CUDA_R_32F, CUDA_R_32F
             NaiveGemmKernelNN<float, float, float><<<grid, block>>>(m, n, k,
-                reinterpret_cast<float*>(A), lda, 
-                reinterpret_cast<float*>(B), ldb, 
+                reinterpret_cast<float*>(A), lda,
+                reinterpret_cast<float*>(B), ldb,
                 reinterpret_cast<float*>(C), ldc);
             break;
         case 6: // CUDA_R_64F, CUDA_R_64F, CUDA_R_64F, CUDA_R_64F
             NaiveGemmKernelNN<double, double, double><<<grid, block>>>(m, n, k,
-                reinterpret_cast<double*>(A), lda, 
-                reinterpret_cast<double*>(B), ldb, 
+                reinterpret_cast<double*>(A), lda,
+                reinterpret_cast<double*>(B), ldb,
                 reinterpret_cast<double*>(C), ldc);
             break;
         case 7: // CUDA_C_32F, CUDA_C_8I,  CUDA_C_8I,  CUDA_C_32F
@@ -289,20 +289,24 @@ bool VerifyT(T* x, T* y, int count) {
         x, x + count, y, init, binary_op1, binary_op2);
 
     if (static_cast<double>(result) > 1e-6) {
-        std::cerr << "error: " << result << std::endl;
+        //std::cerr << "error: " << result << std::endl;
         return false;
     }
     else {
-        std::cout << "PASSED" << std::endl;
+        //std::cout << "PASSED" << std::endl;
         return true;
     }
+}
+
+std::ostream& operator<<(std::ostream& os, const half& x) {
+    os << __half2float(x);
+    return os;
 }
 
 bool Verify(void* x, void* y, int count, cudaDataType_t dtype) {
     switch (dtype) {
         case CUDA_R_16F:
-            assert(false);
-            //return VerifyT<__half>(reinterpret_cast<__half*>(x), reinterpret_cast<__half*>(y), count);
+            return VerifyT<half>(reinterpret_cast<half*>(x), reinterpret_cast<half*>(y), count);
         case CUDA_R_32I:
             return VerifyT<int>(reinterpret_cast<int*>(x), reinterpret_cast<int*>(y), count);
         case CUDA_R_32F:
