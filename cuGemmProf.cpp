@@ -524,7 +524,7 @@ int main (int argc, const char* argv[]) {
            + kDtype2Str.at(param.dtype.Btype) + ", "
            + kDtype2Str.at(param.dtype.Ctype) + ", "
            + kDtype2Str.at(param.dtype.computeType) + ", ";
-        if (param.dtype.computeType == CUDA_R_32I) {
+        if (param.dtype.Atype == CUDA_R_8I) {
             all_info += Dp4aRestrictions(param);
         }
         else {
