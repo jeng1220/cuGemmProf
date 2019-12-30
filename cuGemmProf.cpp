@@ -296,14 +296,12 @@ void ProfileGemm(const Param_t& param, const std::vector<cublasGemmAlgo_t>& algo
         RUNTIME_API_CALL(cudaEventSynchronize(end));
         RUNTIME_API_CALL(cudaEventElapsedTime(&time, start, end));
 
-        fault = !Verify((float*)param.D, (float*)param.C, param.m * param.n, param.dtype.Ctype);
+        fault = !Verify(param.C, param.D, param.m * param.n, param.dtype.Ctype);
         if (fault) {
-            /*
-            PrintMatrix((float*)param.A, param.m, param.k, param.lda);
-            PrintMatrix((float*)param.B, param.k, param.n, param.ldb);
-            PrintMatrix((float*)param.C, param.m, param.n, param.ldc);
-            PrintMatrix((float*)param.D, param.m, param.n, param.ldc);
-            */
+            PrintMatrix(param.A, param.m, param.k, param.lda, param.dtype.Atype);
+            PrintMatrix(param.B, param.k, param.n, param.ldb, param.dtype.Btype);
+            PrintMatrix(param.C, param.m, param.n, param.ldc, param.dtype.Ctype);
+            PrintMatrix(param.D, param.m, param.n, param.ldc, param.dtype.Ctype);
         }
         RUNTIME_API_CALL(cudaMemset(param.C, 0, param.m * param.n * Dtype2Size(param.dtype.Ctype)));
 

@@ -324,17 +324,69 @@ bool Verify(void* x, void* y, int count, cudaDataType_t dtype) {
     return false;
 }
 
-void PrintMatrix(float* dev_ptr, int w, int h, int ld)
+template <typename data_t>
+void PrintMatrixT(const data_t* dev_ptr, int w, int h, int ld)
 {
-    size_t size = ld * h * sizeof(float);
-    float* host_ptr = (float*)malloc(size);
+    size_t size = ld * h * sizeof(data_t);
+    data_t* host_ptr = (data_t*)malloc(size);
     RUNTIME_API_CALL(cudaMemcpy(host_ptr, dev_ptr, size, cudaMemcpyDeviceToHost));
+
     for (int y = 0; y < h; ++y) {
         for (int x = 0; x < ld; ++x) {
-            printf("%.f, ", host_ptr[y * ld + x]);
+            std::cout << +host_ptr[y * ld + x] << ", ";
         }
-        printf("\n");
+        std::cout << std::endl;
     }
-    printf("\n\n");
+    std::cout << "\n" << std::endl;
     free(host_ptr);
+}
+
+template <>
+void PrintMatrixT<half>(const half* dev_ptr, int w, int h, int ld)
+{
+    size_t size = ld * h * sizeof(half);
+    half* host_ptr = (half*)malloc(size);
+    RUNTIME_API_CALL(cudaMemcpy(host_ptr, dev_ptr, size, cudaMemcpyDeviceToHost));
+
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < ld; ++x) {
+            std::cout << host_ptr[y * ld + x] << ", ";
+        }
+        std::cout << std::endl;
+    }
+    std::cout << "\n" << std::endl;
+    free(host_ptr);
+}
+
+void PrintMatrix(const void* dev_ptr, int w, int h,
+    int ld, cudaDataType_t dtype)
+{
+    switch (dtype) {
+        case CUDA_R_8I:
+            PrintMatrixT<char>(reinterpret_cast<const char*>(dev_ptr), w, h, ld);
+            break;
+        case CUDA_R_16F:
+            PrintMatrixT<half>(reinterpret_cast<const half*>(dev_ptr), w, h, ld);
+            break;
+        case CUDA_R_32I:
+            PrintMatrixT<int>(reinterpret_cast<const int*>(dev_ptr), w, h, ld);
+            break;
+        case CUDA_R_32F:
+            PrintMatrixT<float>(reinterpret_cast<const float*>(dev_ptr), w, h, ld);
+            break;
+        case CUDA_R_64F:
+            PrintMatrixT<double>(reinterpret_cast<const double*>(dev_ptr), w, h, ld);
+            break;
+        case CUDA_C_8I:
+            PrintMatrixT<char>(reinterpret_cast<const char*>(dev_ptr), 2 * w, h, 2 * ld);
+            break;
+        case CUDA_C_32F:
+            PrintMatrixT<float>(reinterpret_cast<const float*>(dev_ptr), 2 * w, h, 2 * ld);
+            break;
+        case CUDA_C_64F:
+            PrintMatrixT<double>(reinterpret_cast<const double*>(dev_ptr), 2 * w, h, 2 * ld);
+            break;
+        default:
+            assert(false);
+    }
 }
