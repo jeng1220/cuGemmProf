@@ -49,5 +49,6 @@ ID, ComputeType, Atype,      Btype,      Ctype
 6,  {CUDA_R_64F, CUDA_R_64F, CUDA_R_64F, CUDA_R_64F}
 7,  {CUDA_C_32F, CUDA_C_8I,  CUDA_C_8I,  CUDA_C_32F}
 8,  {CUDA_C_32F, CUDA_C_32F, CUDA_C_32F, CUDA_C_32F}
+9,  {CUDA_C_64F, CUDA_C_64F, CUDA_C_64F, CUDA_C_64F}
 
 ```
