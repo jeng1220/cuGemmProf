@@ -6,10 +6,9 @@ void NaiveGemm(
     cublasOperation_t transa,
     cublasOperation_t transb,
     int m, int n, int k,
-    void* A, int lda,
-    void* B, int ldb,
-    void* C, int ldc,
-    cudaDataType_t src_type,
-    int gemm_type);
+    void* A, cudaDataType_t a_type, int lda,
+    void* B, cudaDataType_t b_type, int ldb,
+    void* C, cudaDataType_t c_type, int ldc,
+    cudaDataType_t compute_type);
 bool Verify(void* x, void* y, int count, cudaDataType_t dtype);
 void PrintMatrix(float* dev_ptr, int w, int h, int ld);

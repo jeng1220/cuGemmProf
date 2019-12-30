@@ -562,11 +562,10 @@ int main (int argc, const char* argv[]) {
             param.transa,
             param.transb,
             param.m, param.n, param.k,
-            param.A, param.lda,
-            param.B, param.ldb,
-            param.D, param.ldc,
-            param.dtype.Atype,
-            dtype_id);
+            param.A, param.dtype.Atype, param.lda,
+            param.B, param.dtype.Btype, param.ldb,
+            param.D, param.dtype.Ctype, param.ldc,
+            param.dtype.computeType);
 
         auto loop = result["l"].as<int>();
 

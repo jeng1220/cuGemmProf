@@ -233,9 +233,10 @@ int GetGemmTypeId(cudaDataType_t compute_type,
                 default: assert(false);
             }
         case CUDA_R_64F: return 6;
-
+        case CUDA_C_32F: return (src_type == CUDA_C_8I) ? 7 : 8;
+        case CUDA_C_64F: return 9;
+        default: assert(false);
     }
-    assert(false);
     return -1;
 }
 
@@ -243,18 +244,17 @@ void NaiveGemm(
     cublasOperation_t transa,
     cublasOperation_t transb,
     int m, int n, int k,
-    void* A, int lda,
-    void* B, int ldb,
-    void* C, int ldc,
-    cudaDataType_t src_type,
-    int gemm_type) 
+    void* A, cudaDataType_t a_type, int lda,
+    void* B, cudaDataType_t b_type, int ldb,
+    void* C, cudaDataType_t c_type, int ldc,
+    cudaDataType_t compute_type) 
 {
-    int src_dtype_size = Dtype2Size(src_type);
+    int src_dtype_size = Dtype2Size(a_type);
     void* dev_A = A;
     int trans_lda = lda;
     if (transa == CUBLAS_OP_T) {
         RUNTIME_API_CALL(cudaMalloc(&dev_A, m * lda * src_dtype_size));
-        NaiveMatrixTranspose(lda, m, A, dev_A, src_type);
+        NaiveMatrixTranspose(lda, m, A, dev_A, a_type);
         trans_lda = m;
     }
 
@@ -262,10 +262,11 @@ void NaiveGemm(
     int trans_ldb = ldb;
     if (transb == CUBLAS_OP_T) {
         RUNTIME_API_CALL(cudaMalloc(&dev_B, k * ldb * src_dtype_size));
-        NaiveMatrixTranspose(ldb, k, B, dev_B, src_type);
+        NaiveMatrixTranspose(ldb, k, B, dev_B, b_type);
         trans_ldb = k;
     }
 
+    auto gemm_type = GetGemmTypeId(compute_type, a_type, c_type);
     NaiveGemmNN(m, n, k, dev_A, trans_lda, dev_B, trans_ldb, C, ldc, gemm_type);
     if (dev_A != A) RUNTIME_API_CALL(cudaFree(dev_A));
     if (dev_B != B) RUNTIME_API_CALL(cudaFree(dev_B));
