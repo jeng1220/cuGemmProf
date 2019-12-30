@@ -181,6 +181,10 @@ std::ostream& operator<<(std::ostream& os, const Result_t& x) {
 
 bool SortResult (const Result_t& x, const Result_t& y) { return (x.time < y.time); }
 
+int RoundOff(int v, int d) {
+   return (v + d - 1) / d * d;
+}
+
 void ProfileGemmLt(const Param_t& param, const std::string& config_info, int loop) {
 
     cublasLtHandle_t handle;
@@ -196,36 +200,88 @@ void ProfileGemmLt(const Param_t& param, const std::string& config_info, int loo
     cublasLtMatrixLayout_t Adesc, Bdesc, Cdesc;
     CUBLAS_API_CALL(cublasLtMatrixLayoutCreate(
        &Adesc, param.dtype.Atype,
-       param.transa == CUBLAS_OP_N ? param.m : param.k,
-       param.transa == CUBLAS_OP_N ? param.k : param.m,
+       param.transa == CUBLAS_OP_N ? param.m : param.k, // width
+       param.transa == CUBLAS_OP_N ? param.k : param.m, // height
        param.lda));
     CUBLAS_API_CALL(cublasLtMatrixLayoutCreate(
        &Bdesc, param.dtype.Btype,
-       param.transb == CUBLAS_OP_N ? param.k : param.n,
-       param.transb == CUBLAS_OP_N ? param.n : param.k,
+       param.transb == CUBLAS_OP_N ? param.k : param.n, // width
+       param.transb == CUBLAS_OP_N ? param.n : param.k, // height
        param.ldb));
     CUBLAS_API_CALL(cublasLtMatrixLayoutCreate(
         &Cdesc, param.dtype.Ctype, param.m, param.n, param.ldc));
 
-    cublasLtMatmulPreference_t preference;
-    CUBLAS_API_CALL(cublasLtMatmulPreferenceCreate(&preference));
-    size_t workspace_size = 0;
-    CUBLAS_API_CALL(cublasLtMatmulPreferenceSetAttribute(
-        preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
-        &workspace_size, sizeof(workspace_size)));
 
-    cublasStatus_t ret;
-    cublasLtMatmulHeuristicResult_t result = {};
-    int nb_result = 0;
-    bool fault = false;
-    ret = cublasLtMatmulAlgoGetHeuristic(
-       handle, op_desc, Adesc, Bdesc, Cdesc, Cdesc, preference,
-       1, &result, &nb_result);
-    if (nb_result == 0) {
-        std::cerr << cublasGetErrorString(ret) << std::endl;
-        fault = true;
+    cublasLtMatrixTransformDesc_t transformDesc;
+    cublasLtMatrixLayout_t AtransformDesc;
+    cublasLtMatrixLayout_t BtransformDesc;
+    cublasLtMatrixLayout_t CtransformDesc;
+    void* Atransform;
+    void* Btransform;
+    void* Ctransform;
+    if (param.dtype.Atype == CUDA_R_8I) {
+
+        auto opTranspose = CUBLAS_OP_T;
+        CUBLAS_API_CALL(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_TRANSB,
+            &opTranspose, sizeof(opTranspose)));
+
+        auto rowOrder = CUBLASLT_ORDER_ROW;
+        CUBLAS_API_CALL(cublasLtMatrixLayoutSetAttribute(Bdesc,
+            CUBLASLT_MATRIX_LAYOUT_ORDER, &rowOrder, sizeof(cublasLtOrder_t)));
+
+
+        CUBLAS_API_CALL(cublasLtMatrixTransformDescCreate(&transformDesc,
+            CUDA_R_32F));
+        CUBLAS_API_CALL(cublasLtMatrixTransformDescSetAttribute(transformDesc,
+            CUBLASLT_MATRIX_TRANSFORM_DESC_TRANSB, &opTranspose, sizeof(cublasOperation_t)));
+
+        int ldatransform = 32 * param.m;
+        int ldbtransform = 32 * RoundOff(param.n, 8);
+        int ldctransform = 32 * param.m;
+        RUNTIME_API_CALL(cudaMalloc(&Atransform,
+            Dtype2Size(param.dtype.Atype) * RoundOff(param.k, 32) / 32 * ldatransform));
+        RUNTIME_API_CALL(cudaMalloc(&Btransform,
+            Dtype2Size(param.dtype.Btype) * RoundOff(param.k, 32) / 32 * ldbtransform));
+        RUNTIME_API_CALL(cudaMalloc(&Ctransform,
+            Dtype2Size(param.dtype.Ctype) * RoundOff(param.n, 32) / 32 * ldctransform));
+
+ 
+        auto order_COL32 = CUBLASLT_ORDER_COL32;
+        CUBLAS_API_CALL(cublasLtMatrixLayoutCreate(&AtransformDesc, param.dtype.Atype,
+            param.m, param.k, ldatransform));
+        CUBLAS_API_CALL(cublasLtMatrixLayoutSetAttribute(AtransformDesc,
+            CUBLASLT_MATRIX_LAYOUT_ORDER, &order_COL32, sizeof(cublasLtOrder_t)));
+
+        auto order_COL4_4R2_8C = CUBLASLT_ORDER_COL4_4R2_8C;
+        CUBLAS_API_CALL(cublasLtMatrixLayoutCreate(&BtransformDesc, param.dtype.Btype,
+            param.n, param.k, ldbtransform));
+        CUBLAS_API_CALL(cublasLtMatrixLayoutSetAttribute(BtransformDesc,
+            CUBLASLT_MATRIX_LAYOUT_ORDER, &order_COL4_4R2_8C, sizeof(cublasLtOrder_t)));
+
+        CUBLAS_API_CALL(cublasLtMatrixLayoutCreate(&CtransformDesc, param.dtype.Ctype,
+            param.m, param.n, ldctransform));
+        CUBLAS_API_CALL(cublasLtMatrixLayoutSetAttribute(CtransformDesc,
+            CUBLASLT_MATRIX_LAYOUT_ORDER, &order_COL32, sizeof(cublasLtOrder_t)));
+
+        float transformAlpha = 1.0f;
+        float transformBeta = 0.0f;
+        CUBLAS_API_CALL(cublasLtMatrixTransform(handle, transformDesc,
+            &transformAlpha, param.A, Adesc,
+            &transformBeta, nullptr, nullptr, Atransform, AtransformDesc, 0));
+        CUBLAS_API_CALL(cublasLtMatrixTransform(handle, transformDesc,
+            &transformAlpha, param.B, Bdesc,
+            &transformBeta, nullptr, nullptr, Btransform, BtransformDesc, 0));
+        RUNTIME_API_CALL(cudaStreamSynchronize(0));
+        /*
+        PrintMatrix(param.A, param.lda, param.k, param.lda, param.dtype.Atype);
+        PrintMatrix(Atransform, ldatransform, RoundOff(param.k, 32) / 32, ldatransform, param.dtype.Atype);
+
+        PrintMatrix(param.B, param.ldb, param.n, param.ldb, param.dtype.Btype);
+        PrintMatrix(Btransform, ldbtransform, RoundOff(param.k, 32) / 32, ldbtransform, param.dtype.Btype);
+        */
     }
 
+    bool fault = false;
     cudaEvent_t start;
     cudaEvent_t end;
 
@@ -234,18 +290,69 @@ void ProfileGemmLt(const Param_t& param, const std::string& config_info, int loo
     std::vector<Result_t> results;
     float time = 0.f;
 
-    RUNTIME_API_CALL(cudaEventRecord(start));
-    for (int i = 0; i < loop && !fault; ++i) {
+    if (param.dtype.Atype == CUDA_R_8I) {
+        RUNTIME_API_CALL(cudaEventRecord(start));
+        for (int i = 0; i < loop && !fault; ++i) {
 
-        CUBLAS_API_CALL(cublasLtMatmul(handle, op_desc, 
-                                       param.alpha, param.A, Adesc,
-                                       param.B, Bdesc, param.beta,
-                                       param.C, Cdesc, param.C, Cdesc,
-                                       &result.algo, nullptr, workspace_size, 0));
+            CUBLAS_API_CALL(cublasLtMatmul(handle, op_desc, 
+                                        param.alpha, Atransform, AtransformDesc,
+                                        Btransform, BtransformDesc, param.beta,
+                                        Ctransform, CtransformDesc, Ctransform, CtransformDesc,
+                                        nullptr, nullptr, 0, 0));
+        }
+        RUNTIME_API_CALL(cudaEventRecord(end));
     }
-    RUNTIME_API_CALL(cudaEventRecord(end));
+    else {
+
+        cublasLtMatmulPreference_t preference;
+        CUBLAS_API_CALL(cublasLtMatmulPreferenceCreate(&preference));
+        size_t workspace_size = 0;
+        CUBLAS_API_CALL(cublasLtMatmulPreferenceSetAttribute(
+            preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+            &workspace_size, sizeof(workspace_size)));
+
+        cublasStatus_t ret;
+        cublasLtMatmulHeuristicResult_t result = {};
+        int nb_result = 0;
+        bool fault = false;
+        
+        ret = cublasLtMatmulAlgoGetHeuristic(
+            handle, op_desc, Adesc, Bdesc, Cdesc, Cdesc, preference,
+            1, &result, &nb_result);
+        if (nb_result == 0) {
+            std::cerr << cublasGetErrorString(ret) << std::endl;
+            fault = true;
+        }
+        CUBLAS_API_CALL(cublasLtMatmulPreferenceDestroy(preference));
+
+        RUNTIME_API_CALL(cudaEventRecord(start));
+        for (int i = 0; i < loop && !fault; ++i) {
+
+            CUBLAS_API_CALL(cublasLtMatmul(handle, op_desc, 
+                                        param.alpha, param.A, Adesc,
+                                        param.B, Bdesc, param.beta,
+                                        param.C, Cdesc, param.C, Cdesc,
+                                        &result.algo, nullptr, workspace_size, 0));
+        }
+        RUNTIME_API_CALL(cudaEventRecord(end));   
+    }
+
     RUNTIME_API_CALL(cudaEventSynchronize(end));
     RUNTIME_API_CALL(cudaEventElapsedTime(&time, start, end));
+
+    if (param.dtype.Atype == CUDA_R_8I) {
+        float transformAlpha = 1.0f;
+        float transformBeta = 0.0f;
+        CUBLAS_API_CALL(cublasLtMatrixTransform(handle, transformDesc, &transformAlpha, Ctransform,
+            CtransformDesc, &transformBeta, nullptr, nullptr, param.C, Cdesc, 0));
+        RUNTIME_API_CALL(cudaFree(Atransform));
+        RUNTIME_API_CALL(cudaFree(Btransform));
+        RUNTIME_API_CALL(cudaFree(Ctransform));
+        CUBLAS_API_CALL(cublasLtMatrixLayoutDestroy(AtransformDesc));
+        CUBLAS_API_CALL(cublasLtMatrixLayoutDestroy(BtransformDesc));
+        CUBLAS_API_CALL(cublasLtMatrixLayoutDestroy(CtransformDesc));
+        CUBLAS_API_CALL(cublasLtMatrixTransformDescDestroy(transformDesc));
+    }
 
     if (!fault) {
         fault = !Verify(param.C, param.D, param.m * param.n, param.dtype.Ctype);
@@ -273,7 +380,7 @@ void ProfileGemmLt(const Param_t& param, const std::string& config_info, int loo
 
     RUNTIME_API_CALL(cudaEventDestroy(start));
     RUNTIME_API_CALL(cudaEventDestroy(end));
-    CUBLAS_API_CALL(cublasLtMatmulPreferenceDestroy(preference));
+    
     CUBLAS_API_CALL(cublasLtMatrixLayoutDestroy(Cdesc));
     CUBLAS_API_CALL(cublasLtMatrixLayoutDestroy(Bdesc));
     CUBLAS_API_CALL(cublasLtMatrixLayoutDestroy(Adesc));
