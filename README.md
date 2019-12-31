@@ -2,8 +2,9 @@
 A simple tool to profile multiple combinations of GEMM based on cuBLAS
 
 ## requirement ##
-* CUDA
-* cuBLAS
+* CUDA 10.1+
+* cuBLAS 10.1+
+* CUDA Compute Capability 6.0+
 
 ## build ##
 ```sh
