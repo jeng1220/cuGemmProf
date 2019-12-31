@@ -24,7 +24,7 @@ $ ./cuGemmProf -m 128 -n 64 -k 1024 --type 5,6 -l 10 --all_algo
 ## available options ##
 ```sh
 Usage:
-  ./gemm_perf [OPTION...]
+  ./cuGemmProf [OPTION...]
 
   -m, arg         m dimension (default: 32)
   -n, arg         n dimension (default: 32)
