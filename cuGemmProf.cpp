@@ -230,6 +230,7 @@ void ProfileGemmLt(const Param_t& param, const std::string& config_info, int loo
         nullptr, nullptr, 0};
 
     bool use_imma = param.dtype.computeType == CUDA_R_32I &&
+                    param.transa == CUBLAS_OP_N &&
                     param.transb == CUBLAS_OP_T;
 
     cublasLtMatrixTransformDesc_t transformDesc;
