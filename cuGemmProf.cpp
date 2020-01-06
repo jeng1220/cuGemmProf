@@ -717,7 +717,7 @@ int main (int argc, const char* argv[]) {
     param.transb = result.count("tb") ? CUBLAS_OP_T : CUBLAS_OP_N;
     param.ldb = (param.transb == CUBLAS_OP_N) ? param.k : param.n;
     param.ldc = param.m;
-    param.workspace_size = result["w"].as<size_t>();
+    param.workspace_size = result["w"].as<size_t>() << 20;
     if (param.workspace_size) {
         RUNTIME_API_CALL(cudaMalloc(&param.workspace, param.workspace_size));
     }
