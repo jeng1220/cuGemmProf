@@ -1,4 +1,5 @@
 #pragma once
+#include "helper.h"
 #include <cuda_runtime.h>
 
 #define ADD_KEY_AND_STR(x) {x, #x}
@@ -22,3 +23,6 @@ do {                                                                            
         exit(EXIT_FAILURE);                                                           \
     }                                                                                 \
 } while (0)
+
+#define CUBLASLT_IMMA_ALG -5000
+#define CUBLASLT_HEURISTIC_ALG -2
