@@ -1,6 +1,5 @@
 #pragma once
 #include <cublas_v2.h>
-void* AllocAlphaScale(cudaDataType_t dtype);
 void InitMatrix(void* ptr, int w, int h, int ld, cudaDataType_t dtype);
 void NaiveGemm(
     cublasOperation_t transa,

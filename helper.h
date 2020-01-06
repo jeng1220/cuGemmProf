@@ -21,6 +21,8 @@ struct Dtypes_t {
     }
 };
 
+Dtypes_t GetGemmDtype(int id);
+
 struct Param_t {
     cublasOperation_t transa;
     cublasOperation_t transb;
@@ -56,3 +58,5 @@ struct Result_t {
 };
 
 bool SortResult (const Result_t& x, const Result_t& y);
+
+void* AllocAlphaScale(cudaDataType_t dtype);

@@ -138,19 +138,6 @@ int main (int argc, const char* argv[]) {
 
     auto result = Parse(argc, argv);
 
-    const std::vector<Dtypes_t> gemm_types = {
-        Dtypes_t{CUDA_R_16F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F},
-        Dtypes_t{CUDA_R_32I, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32I},
-        Dtypes_t{CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F},
-        Dtypes_t{CUDA_R_32F, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32F},
-        Dtypes_t{CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_32F},
-        Dtypes_t{CUDA_R_32F, CUDA_R_32F, CUDA_R_32F, CUDA_R_32F},
-        Dtypes_t{CUDA_R_64F, CUDA_R_64F, CUDA_R_64F, CUDA_R_64F},
-        Dtypes_t{CUDA_C_32F, CUDA_C_8I,  CUDA_C_8I,  CUDA_C_32F},
-        Dtypes_t{CUDA_C_32F, CUDA_C_32F, CUDA_C_32F, CUDA_C_32F},
-        Dtypes_t{CUDA_C_64F, CUDA_C_64F, CUDA_C_64F, CUDA_C_64F},
-    };
-
     const std::vector<cublasGemmAlgo_t> cuda_algos = {
         CUBLAS_GEMM_DEFAULT,
         CUBLAS_GEMM_ALGO0,
@@ -233,7 +220,7 @@ int main (int argc, const char* argv[]) {
 
     for (auto dtype_id : selected_dtypes) {
 
-        auto dtypes = gemm_types[dtype_id];
+        auto dtypes = GetGemmDtype(dtype_id);
         param.dtype = dtypes;
 
         std::string all_info;

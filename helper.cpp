@@ -1,6 +1,25 @@
 #include "helper.h"
 #include "macro.h"
+#include <thrust/complex.h>
 #include <map>
+#include <vector>
+#include <cassert>
+
+Dtypes_t GetGemmDtype(int id) {
+    const static std::vector<Dtypes_t> kGemmDtypes{
+        Dtypes_t{CUDA_R_16F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F},
+        Dtypes_t{CUDA_R_32I, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32I},
+        Dtypes_t{CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F},
+        Dtypes_t{CUDA_R_32F, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32F},
+        Dtypes_t{CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_32F},
+        Dtypes_t{CUDA_R_32F, CUDA_R_32F, CUDA_R_32F, CUDA_R_32F},
+        Dtypes_t{CUDA_R_64F, CUDA_R_64F, CUDA_R_64F, CUDA_R_64F},
+        Dtypes_t{CUDA_C_32F, CUDA_C_8I,  CUDA_C_8I,  CUDA_C_32F},
+        Dtypes_t{CUDA_C_32F, CUDA_C_32F, CUDA_C_32F, CUDA_C_32F},
+        Dtypes_t{CUDA_C_64F, CUDA_C_64F, CUDA_C_64F, CUDA_C_64F},
+    };
+    return kGemmDtypes.at(id);
+}
 
 int Dtype2Size(cudaDataType_t dtype) {
     const static std::map<cudaDataType_t, int> kDtype2Size{
@@ -113,4 +132,39 @@ std::ostream& operator<<(std::ostream& os, const Result_t& x) {
 
 bool SortResult (const Result_t& x, const Result_t& y) { 
     return (x.time < y.time); 
+}
+
+void* AllocAlphaScale(cudaDataType_t dtype)
+{
+    void* ptr = nullptr;
+    ptr = malloc(Dtype2Size(dtype));
+    switch (dtype) {
+        case CUDA_R_8I:
+            *(reinterpret_cast<char*>(ptr)) = 1;
+            break;
+        case CUDA_R_16F:
+            *(reinterpret_cast<half*>(ptr)) = 1.f;
+            break;
+        case CUDA_R_32I:
+            *(reinterpret_cast<int*>(ptr)) = 1;
+            break;
+        case CUDA_R_32F:
+            *(reinterpret_cast<float*>(ptr)) = 1.f;
+            break;
+        case CUDA_R_64F:
+            *(reinterpret_cast<double*>(ptr)) = 1.0;
+            break;
+        case CUDA_C_8I:
+            *(reinterpret_cast< thrust::complex<char>* >(ptr)) = 1;
+            break;
+        case CUDA_C_32F:
+            *(reinterpret_cast< thrust::complex<float>* >(ptr)) = 1.f;
+            break;
+        case CUDA_C_64F:
+            *(reinterpret_cast< thrust::complex<double>* >(ptr)) = 1.0;
+            break;
+        default:
+            assert(false);
+    }
+    return ptr;
 }

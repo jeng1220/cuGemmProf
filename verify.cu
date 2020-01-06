@@ -12,43 +12,6 @@
 #include <cstdio>
 #include <cassert>
 
-
-
-void* AllocAlphaScale(cudaDataType_t dtype)
-{
-    void* ptr = nullptr;
-    ptr = malloc(Dtype2Size(dtype));
-    switch (dtype) {
-        case CUDA_R_8I:
-            *(reinterpret_cast<char*>(ptr)) = 1;
-            break;
-        case CUDA_R_16F:
-            *(reinterpret_cast<half*>(ptr)) = 1.f;
-            break;
-        case CUDA_R_32I:
-            *(reinterpret_cast<int*>(ptr)) = 1;
-            break;
-        case CUDA_R_32F:
-            *(reinterpret_cast<float*>(ptr)) = 1.f;
-            break;
-        case CUDA_R_64F:
-            *(reinterpret_cast<double*>(ptr)) = 1.0;
-            break;
-        case CUDA_C_8I:
-            *(reinterpret_cast< thrust::complex<char>* >(ptr)) = 1;
-            break;
-        case CUDA_C_32F:
-            *(reinterpret_cast< thrust::complex<float>* >(ptr)) = 1.f;
-            break;
-        case CUDA_C_64F:
-            *(reinterpret_cast< thrust::complex<double>* >(ptr)) = 1.0;
-            break;
-        default:
-            assert(false);
-    }
-    return ptr;
-}
-
 template <typename data_t>
 __global__ void InitMatrixKernal(void* dev_ptr, int w, int h, int ld) 
 {
