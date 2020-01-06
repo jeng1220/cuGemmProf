@@ -108,6 +108,8 @@ struct Param_t {
     int ldc;
     Dtypes_t dtype;
     void *D;
+    size_t workspace_size;
+    void* workspace;
     std::string GetDimsInfo(void) {
         return kOperation2Str.at(transa) + ", "
              + kOperation2Str.at(transb) + ", "
@@ -136,6 +138,7 @@ cxxopts::ParseResult Parse(int argc, const char* argv[]) {
     ("algo", "assgin algorithm ID (0~23)", cxxopts::value< std::vector<int> >())
     ("tensor_algo", "assgin TensorOp algorithm ID (0~15)", cxxopts::value< std::vector<int> >())
     ("all_algo", "run all algorithms")
+    ("w, workspace", "workspace size (MB)", cxxopts::value<size_t>()->default_value("0"))
     ("help", "print help");
 
     auto result = options.parse(argc, (char**&)argv);
@@ -187,6 +190,119 @@ int RoundOff(int v, int d) {
    return (v + d - 1) / d * d;
 }
 
+struct AlgoAttr_t {
+    int splite_k_support;
+    int reduction_scheme_mask;
+    int swizzling_support;
+    int custom_option_max;
+    int epilogue_mask;
+    std::vector<int> tile_ids;
+    AlgoAttr_t(cublasLtMatmulAlgo_t algo) {
+        CUBLAS_API_CALL(cublasLtMatmulAlgoCapGetAttribute(&algo,
+            CUBLASLT_ALGO_CAP_SPLITK_SUPPORT, &splite_k_support, sizeof(int), nullptr));
+        CUBLAS_API_CALL(cublasLtMatmulAlgoCapGetAttribute(&algo,
+            CUBLASLT_ALGO_CAP_REDUCTION_SCHEME_MASK, &reduction_scheme_mask, sizeof(int), nullptr));
+        CUBLAS_API_CALL(cublasLtMatmulAlgoCapGetAttribute(&algo,
+            CUBLASLT_ALGO_CAP_CTA_SWIZZLING_SUPPORT, &swizzling_support, sizeof(int), nullptr));
+        CUBLAS_API_CALL(cublasLtMatmulAlgoCapGetAttribute(&algo,
+            CUBLASLT_ALGO_CAP_CUSTOM_OPTION_MAX, &custom_option_max, sizeof(int), nullptr));
+        CUBLAS_API_CALL(cublasLtMatmulAlgoCapGetAttribute(&algo,
+            CUBLASLT_ALGO_CAP_EPILOGUE_MASK, &epilogue_mask, sizeof(int), nullptr));
+
+        size_t sizeWritten = 0;
+        CUBLAS_API_CALL(cublasLtMatmulAlgoCapGetAttribute(&algo, CUBLASLT_ALGO_CAP_TILE_IDS,
+            nullptr, 0, &sizeWritten));
+
+        int nb_tiles = static_cast<int>(sizeWritten / sizeof(int));
+        std::vector<int> tile_ids;
+        if (nb_tiles > 0) {
+            tile_ids.resize(nb_tiles);
+            CUBLAS_API_CALL(cublasLtMatmulAlgoCapGetAttribute(
+            &algo, CUBLASLT_ALGO_CAP_TILE_IDS, tile_ids.data(), sizeWritten, nullptr));
+        }
+        else {
+            tile_ids.resize(1);
+            tile_ids[0] = static_cast<int>(CUBLASLT_MATMUL_TILE_UNDEFINED);
+        }
+    }
+};
+
+struct CublasLtParam_t
+{
+    cublasLtMatrixLayout_t A_desc;
+    cublasLtMatrixLayout_t B_desc;
+    cublasLtMatrixLayout_t C_desc;
+    void* A;
+    void* B;
+    void* C;
+    cublasLtMatmulAlgo_t* algo;
+    void* workspace;
+    size_t workspace_size;
+};
+
+void ProfileAllGemmAlgoLt(cublasLtHandle_t handle, cublasLtMatmulDesc_t op_desc, const Param_t& param, const CublasLtParam_t& lt_param, int loop) {
+   const int max_algos = 40;
+   std::vector<int> algo_ids(max_algos);
+   int nb_algo_id = 0;
+   CUBLAS_API_CALL(cublasLtMatmulAlgoGetIds(
+       handle, param.dtype.computeType, param.dtype.computeType,
+       param.dtype.Atype, param.dtype.Btype, param.dtype.Ctype, param.dtype.Ctype,
+       max_algos, algo_ids.data(), &nb_algo_id));
+
+   const int max_combine_option = 6000;
+   int combine_count = 0;
+   for (int idx = 0; (idx < nb_algo_id) && (combine_count < max_combine_option); idx++) {
+       cublasLtMatmulAlgo_t algo;
+       CUBLAS_API_CALL(cublasLtMatmulAlgoInit(handle, 
+           param.dtype.computeType, param.dtype.computeType, 
+           param.dtype.Atype, param.dtype.Btype, param.dtype.Ctype, param.dtype.Ctype,
+           algo_ids[idx], &algo));
+
+       AlgoAttr_t algo_attr(algo);
+
+       for (int t = 0; t < algo_attr.tile_ids.size(); ++t) {
+
+           CUBLAS_API_CALL(cublasLtMatmulAlgoConfigSetAttribute(
+               &algo, CUBLASLT_ALGO_CONFIG_TILE_ID, &algo_attr.tile_ids[t], sizeof(int)));
+
+           for (int c = 0; c <= algo_attr.custom_option_max; ++c) {
+               CUBLAS_API_CALL(cublasLtMatmulAlgoConfigSetAttribute(
+                   &algo, CUBLASLT_ALGO_CONFIG_CUSTOM_OPTION, &c, sizeof(int)));
+
+               // is it really needed ?
+               for (int s = 0; s <= algo_attr.swizzling_support; ++s) {
+
+                   CUBLAS_API_CALL(cublasLtMatmulAlgoConfigSetAttribute(
+                       &algo, CUBLASLT_ALGO_CONFIG_CTA_SWIZZLING, &s, sizeof(int)));
+
+                   const std::vector<int> num_split_k_option{1, 2, 3, 4, 5, 6, 8, 12, 16, 32};
+                   for (auto splite_k : num_split_k_option) {
+                       CUBLAS_API_CALL(cublasLtMatmulAlgoConfigSetAttribute(&algo,
+                           CUBLASLT_ALGO_CONFIG_SPLITK_NUM, &splite_k, sizeof(int)));
+
+                       int reduction = CUBLASLT_REDUCTION_SCHEME_NONE;
+                       const int reduction_max = static_cast<const int>(CUBLASLT_REDUCTION_SCHEME_MASK);
+                       for (; reduction < reduction_max && (combine_count < max_combine_option);
+                            reduction <<= 1) {
+
+                           if (reduction & algo_attr.reduction_scheme_mask) {
+                               CUBLAS_API_CALL(cublasLtMatmulAlgoConfigSetAttribute(
+                                   &algo, CUBLASLT_ALGO_CONFIG_REDUCTION_SCHEME, &reduction, sizeof(int)));
+
+                               cublasLtMatmulHeuristicResult_t heurResult{};
+                               CUBLAS_API_CALL(cublasLtMatmulAlgoCheck(handle, op_desc, lt_param.A_desc, lt_param.B_desc, lt_param.C_desc, lt_param.C_desc, &algo, &heurResult));
+                               if (heurResult.workspaceSize <= lt_param.workspace_size) {
+                                   // call cublasLtMatmul(..., algo, ...); here
+                               }
+                           }
+                       }
+                   }
+               }
+           }
+       }
+   }
+}
+
 void ProfileGemmLt(const Param_t& param, const std::string& config_info, int loop) {
     cublasLtHandle_t handle;
     CUBLAS_API_CALL(cublasLtCreate(&handle));
@@ -212,22 +328,9 @@ void ProfileGemmLt(const Param_t& param, const std::string& config_info, int loo
     CUBLAS_API_CALL(cublasLtMatrixLayoutCreate(
         &Cdesc, param.dtype.Ctype, param.m, param.n, param.ldc));
 
-    struct CublasLtParam_t
-    {
-        cublasLtMatrixLayout_t A_desc;
-        cublasLtMatrixLayout_t B_desc;
-        cublasLtMatrixLayout_t C_desc;
-        void* A;
-        void* B;
-        void* C;
-        cublasLtMatmulAlgo_t* algo;
-        void* workspace;
-        size_t workspace_size;
-    };
-
     CublasLtParam_t lt_param{Adesc, Bdesc, Cdesc,
         param.A, param.B, param.C, 
-        nullptr, nullptr, 0};
+        nullptr, param.workspace, param.workspace_size};
 
     bool use_imma = param.dtype.computeType == CUDA_R_32I &&
                     param.transa == CUBLAS_OP_N &&
@@ -297,6 +400,8 @@ void ProfileGemmLt(const Param_t& param, const std::string& config_info, int loo
         CUBLAS_API_CALL(cublasLtMatmulPreferenceSetAttribute(
             preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
             &lt_param.workspace_size, sizeof(size_t)));
+
+        //ProfileAllGemmAlgoLt(handle, op_desc, param, lt_param, loop);
 
         int nb_result = 0;
         cublasStatus_t ret = cublasLtMatmulAlgoGetHeuristic(
@@ -612,6 +717,13 @@ int main (int argc, const char* argv[]) {
     param.transb = result.count("tb") ? CUBLAS_OP_T : CUBLAS_OP_N;
     param.ldb = (param.transb == CUBLAS_OP_N) ? param.k : param.n;
     param.ldc = param.m;
+    param.workspace_size = result["w"].as<size_t>();
+    if (param.workspace_size) {
+        RUNTIME_API_CALL(cudaMalloc(&param.workspace, param.workspace_size));
+    }
+    else {
+        param.workspace = nullptr;
+    }
 
     std::cout << "device, op(A), op(B), m, n, k, ComputeType, Atype, Btype, Ctype, "
         "Dp4aRestrictions(lda.ldb), TensorCoreRestrictions(m.k.A.B.C.lda.ldb.ldc), "
