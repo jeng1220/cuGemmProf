@@ -138,7 +138,7 @@ cxxopts::ParseResult Parse(int argc, const char* argv[]) {
     ("algo", "assgin algorithm ID (0~23)", cxxopts::value< std::vector<int> >())
     ("tensor_algo", "assgin TensorOp algorithm ID (0~15)", cxxopts::value< std::vector<int> >())
     ("all_algo", "run all algorithms")
-    ("w, workspace", "workspace size (MB)", cxxopts::value<size_t>()->default_value("0"))
+    ("w, workspace", "workspace size, unit: MiB", cxxopts::value<size_t>()->default_value("0"))
     ("help", "print help");
 
     auto result = options.parse(argc, (char**&)argv);

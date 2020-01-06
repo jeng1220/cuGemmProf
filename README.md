@@ -37,6 +37,7 @@ Usage:
       --algo arg         assgin algorithm ID (0~23)
       --tensor_algo arg  assgin TensorOp algorithm ID (0~15)
       --all_algo         run all algorithms
+  -w, --workspace arg    workspace size, unit: MiB (default: 0)
       --help      print help
 
 available combination of types:
