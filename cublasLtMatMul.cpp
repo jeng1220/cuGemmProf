@@ -162,7 +162,6 @@ std::vector<Result_t> ProfileAllGemmAlgoLt(cublasLtHandle_t handle, cublasLtMatm
                 CUBLAS_API_CALL(cublasLtMatmulAlgoConfigSetAttribute(
                     &algo, CUBLASLT_ALGO_CONFIG_CUSTOM_OPTION, &c, sizeof(int)));
  
-                // is it really needed ?
                 for (int s = 0; s <= algo_attr.swizzling_support; ++s) {
  
                     CUBLAS_API_CALL(cublasLtMatmulAlgoConfigSetAttribute(
@@ -213,12 +212,12 @@ std::vector<Result_t> ProfileAllGemmAlgoLt(cublasLtHandle_t handle, cublasLtMatm
                                     ", needed workspace size, " << heur_result.workspaceSize << 
                                     ", current workspace size, " << lt_param.workspace_size << std::endl;
                             }
-                        }
-                    }
-                }
-            }
-        }
-    }
+                        } // end of reduction scheme
+                    } // end of splite-k
+                } // end of swizzling support
+            } // end of cutom option
+        } // end of tile size
+    } // end of algorithm
     return results;
 }
 
