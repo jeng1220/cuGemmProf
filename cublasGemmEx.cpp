@@ -58,8 +58,8 @@ std::vector<cublasGemmAlgo_t> AllTensorCoreAlgo() {
     return kAlgos;
 }
 
-void ProfileGemm(const Param_t& param, const std::vector<cublasGemmAlgo_t>& algos,
-    const std::string& config_info, int loop) {
+std::vector<Result_t> ProfileGemm(const Param_t& param,
+    const std::vector<cublasGemmAlgo_t>& algos, int loop) {
 
     cublasHandle_t handle;
     CUBLAS_API_CALL(cublasCreate(&handle));
@@ -111,35 +111,12 @@ void ProfileGemm(const Param_t& param, const std::vector<cublasGemmAlgo_t>& algo
         }
         RUNTIME_API_CALL(cudaMemset(param.C, 0, param.m * param.n * Dtype2Size(param.dtype.Ctype)));
 
-        float gflops = 0;
-        if (!fault) { 
-            time /= loop;
-            float workload = (2.f * param.m * param.n * param.k) * 1e-9;
-            gflops = workload / (time * 1e-3);
-        }
-        else {
-            time = FLT_MAX;
-            gflops = NAN;
-        }
-
-        results.push_back(Result_t{algo, time, gflops});
+        time = fault ? FLT_MAX : (time / loop);
+        results.push_back(Result_t{Algo2Str(algo), time});
     }
 
     RUNTIME_API_CALL(cudaEventDestroy(start));
     RUNTIME_API_CALL(cudaEventDestroy(end));
-
-    std::sort(results.begin(), results.end(), SortResult);
-
-    struct PrintInfo {
-        std::string info_;
-        PrintInfo(const std::string& msg) : info_(msg) {}
-        void operator()(Result_t x) {
-            std::cout << info_ << x << std::endl;
-        }
-    };
-
-    PrintInfo functor(config_info);
-    std::for_each(results.begin(), results.end(), functor);
-
     CUBLAS_API_CALL(cublasDestroy(handle));
+    return results;
 }

@@ -86,16 +86,7 @@ int main (int argc, const char* argv[]) {
     }
     else {
         param.workspace = nullptr;
-    }
-
-    std::cout << "device, op(A), op(B), m, n, k, ComputeType, Atype, Btype, Ctype, "
-        "Dp4aRestrictions(lda.ldb), TensorCoreRestrictions(m.k.A.B.C.lda.ldb.ldc), "
-        "algo, time(ms), GFLOPS" << std::endl;
-
-    std::string dims_info;
-    dims_info = std::string(prop.name) + ", " + param.GetDimsInfo();
-
-    auto selected_dtypes = result["type"].as< std::vector<int> >();
+    } 
 
     std::vector<cublasGemmAlgo_t> selected_cuda_algo{CUBLAS_GEMM_DEFAULT};
     std::vector<cublasGemmAlgo_t> selected_tensor_algo{CUBLAS_GEMM_DEFAULT_TENSOR_OP};
@@ -117,21 +108,12 @@ int main (int argc, const char* argv[]) {
     }
 
     auto loop = result["l"].as<int>();
+    auto selected_dtypes = result["type"].as< std::vector<int> >();
 
     for (auto dtype_id : selected_dtypes) {
 
         auto dtypes = GetGemmDtype(dtype_id);
         param.dtype = dtypes;
-
-        std::string all_info;
-        all_info = dims_info + param.dtype.GetDtypeInfo();
-
-        if (param.dtype.Atype == CUDA_R_8I) {
-            all_info += Dp4aRestrictions(param);
-        }
-        else {
-            all_info += "NA, ";
-        }
 
         auto src_dtype_size = Dtype2Size(dtypes.Atype);
         auto dst_dtype_size = Dtype2Size(dtypes.Ctype);
@@ -181,14 +163,17 @@ int main (int argc, const char* argv[]) {
             param.D, param.dtype.Ctype, param.ldc,
             param.dtype.computeType);
 
-        ProfileGemm(param, selected_cuda_algo, all_info + "NA, ", loop);
+        auto results = ProfileGemm(param, selected_cuda_algo, loop);
+        PrintResult(prop.name, param, results);
+
 
         if (prop.major > 6) {
-            auto info = TensorCoreRestrictions(param);
-            ProfileGemm(param, selected_tensor_algo, all_info + info, loop);
+            results = ProfileGemm(param, selected_tensor_algo, loop);
+            PrintResult(prop.name, param, results);
         }
 
-        ProfileGemmLt(param, all_info + "NA, ", loop);
+        results = ProfileGemmLt(param, loop);
+        PrintResult(prop.name, param, results);
 
         RUNTIME_API_CALL(cudaFree(dev_A));
         RUNTIME_API_CALL(cudaFree(dev_B));

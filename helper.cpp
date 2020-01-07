@@ -126,15 +126,6 @@ std::string Algo2Str(cublasGemmAlgo_t algo) {
     return kAlgo2Str.at(algo);
 }
 
-std::ostream& operator<<(std::ostream& os, const Result_t& x) {
-    os << Algo2Str(x.algo) << ", " << x.time << ", " << x.gflops;
-    return os;
-}
-
-bool SortResult (const Result_t& x, const Result_t& y) { 
-    return (x.time < y.time); 
-}
-
 void* AllocAlphaScale(cudaDataType_t dtype)
 {
     void* ptr = nullptr;
@@ -206,4 +197,45 @@ std::string TensorCoreRestrictions(const Param_t& param) {
     mask[6] = param.ldb % (16 / Dtype2Size(param.dtype.Btype)) == 0;
     mask[7] = param.ldc % (16 / Dtype2Size(param.dtype.Ctype)) == 0;
     return Mask2Str(mask);
+}
+
+bool SortResult (const Result_t& x, const Result_t& y) { 
+    return (x.time < y.time); 
+}
+
+void PrintResult(const char dev_name[], const Param_t& param,
+    const std::vector<Result_t>& results) 
+{
+    std::cout << "device, op(A), op(B), "
+        "m, n, k, ComputeType, Atype, Btype, Ctype, "
+        "Dp4aRestrictions(lda.ldb), TensorCoreRestrictions(m.k.A.B.C.lda.ldb.ldc), "
+        "algo, time(ms), GFLOPS" << std::endl;
+
+    std::string all_info;
+    all_info = std::string(dev_name) + ", "
+        + Operation2Str(param.transa) + ", "
+        + Operation2Str(param.transb) + ", "
+        + std::to_string(param.m) + ", "
+        + std::to_string(param.n) + ", "
+        + std::to_string(param.k) + ", "
+        + Dtype2Str(param.dtype.computeType) + ", "
+        + Dtype2Str(param.dtype.Atype) + ", "
+        + Dtype2Str(param.dtype.Btype) + ", "
+        + Dtype2Str(param.dtype.Ctype) + ", ";
+
+    all_info += Dp4aRestrictions(param);
+    all_info += TensorCoreRestrictions(param);
+
+    float workload = (2.f * param.m * param.n * param.k) * 1e-9;
+
+    std::vector<Result_t> order = results;
+    std::sort(order.begin(), order.end(), SortResult);
+
+    for (auto result : order) {
+        float gflops = workload / (result.time * 1e-3);
+
+        std::cout << all_info << result.algo << ", " << 
+            (result.time == FLT_MAX ? NAN : result.time) << ", " <<
+            (result.time == FLT_MAX ? NAN : gflops) << std::endl;
+    }
 }

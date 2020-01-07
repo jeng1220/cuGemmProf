@@ -1,5 +1,6 @@
 #pragma once
 #include "helper.h"
 #include <string>
+#include <vector>
 
-void ProfileGemmLt(const Param_t& param, const std::string& config_info, int loop);
+std::vector<Result_t> ProfileGemmLt(const Param_t& param, int loop);

@@ -2,27 +2,16 @@
 #include <cublas_v2.h>
 #include <iostream>
 #include <string>
+#include <vector>
 
-int Dtype2Size(cudaDataType_t dtype);
 std::string cublasGetErrorString(cublasStatus_t err);
-std::string Operation2Str(cublasOperation_t op);
-std::string Dtype2Str(cudaDataType_t dtype);
-std::string Algo2Str(cublasGemmAlgo_t algo);
 
 struct Dtypes_t {
     cudaDataType_t computeType;
     cudaDataType_t Atype;
     cudaDataType_t Btype;
     cudaDataType_t Ctype;
-    std::string GetDtypeInfo() {
-        return Dtype2Str(computeType) + ", "
-             + Dtype2Str(Atype) + ", "
-             + Dtype2Str(Btype) + ", "
-             + Dtype2Str(Ctype) + ", ";
-    }
 };
-
-Dtypes_t GetGemmDtype(int id);
 
 struct Param_t {
     cublasOperation_t transa;
@@ -42,25 +31,18 @@ struct Param_t {
     void *D;
     size_t workspace_size;
     void* workspace;
-    std::string GetDimsInfo(void) {
-        return Operation2Str(transa) + ", "
-             + Operation2Str(transb) + ", "
-             + std::to_string(m) + ", "
-             + std::to_string(n) + ", "
-             + std::to_string(k) + ", ";
-    }
 };
 
 struct Result_t {
-    cublasGemmAlgo_t algo;
+    std::string algo;
     float time;
-    float gflops;
-    friend std::ostream& operator<<(std::ostream& os, const Result_t& x);
 };
 
-bool SortResult (const Result_t& x, const Result_t& y);
-
+Dtypes_t GetGemmDtype(int id);
+int Dtype2Size(cudaDataType_t dtype);
+std::string Operation2Str(cublasOperation_t op);
+std::string Dtype2Str(cudaDataType_t dtype);
+std::string Algo2Str(cublasGemmAlgo_t algo);
 void* AllocAlphaScale(cudaDataType_t dtype);
-
-std::string Dp4aRestrictions(const Param_t& param);
-std::string TensorCoreRestrictions(const Param_t& param);
+void PrintResult(const char dev_name[], const Param_t& param,
+    const std::vector<Result_t>& results);

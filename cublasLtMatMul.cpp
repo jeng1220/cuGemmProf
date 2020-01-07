@@ -130,7 +130,7 @@ void ProfileAllGemmAlgoLt(cublasLtHandle_t handle, cublasLtMatmulDesc_t op_desc,
     }
 }
 
-void ProfileGemmLt(const Param_t& param, const std::string& config_info, int loop) {
+std::vector<Result_t> ProfileGemmLt(const Param_t& param, int loop) {
     cublasLtHandle_t handle;
     CUBLAS_API_CALL(cublasLtCreate(&handle));
 
@@ -300,18 +300,10 @@ void ProfileGemmLt(const Param_t& param, const std::string& config_info, int loo
     RUNTIME_API_CALL(cudaEventDestroy(start));
     RUNTIME_API_CALL(cudaEventDestroy(end));
 
-    float gflops = 0;
-    if (!fault) { 
-        time /= loop;
-        float workload = (2.f * param.m * param.n * param.k) * 1e-9;
-        gflops = workload / (time * 1e-3);
-    }
-    else {
-        time = FLT_MAX;
-        gflops = NAN;
-    }
-    std::vector<Result_t> results;
+    time = fault ? FLT_MAX : (time / loop);
     auto algo = static_cast<cublasGemmAlgo_t>(use_imma ? CUBLASLT_IMMA_ALG : CUBLASLT_HEURISTIC_ALG);
-    results.push_back(Result_t{algo, time, gflops});
-    std::cout << config_info << results[0] << std::endl;
+    std::vector<Result_t> results;
+    results.push_back(Result_t{Algo2Str(algo), time});
+
+    return results;
 }
