@@ -6,6 +6,21 @@
 #include <vector>
 #include <cassert>
 
+std::string cublasGetErrorString(cublasStatus_t err) {
+    const static std::map<cublasStatus_t, std::string> kErr2Str{
+        ADD_KEY_AND_STR(CUBLAS_STATUS_NOT_INITIALIZED),
+        ADD_KEY_AND_STR(CUBLAS_STATUS_ALLOC_FAILED),
+        ADD_KEY_AND_STR(CUBLAS_STATUS_INVALID_VALUE),
+        ADD_KEY_AND_STR(CUBLAS_STATUS_ARCH_MISMATCH),
+        ADD_KEY_AND_STR(CUBLAS_STATUS_MAPPING_ERROR),
+        ADD_KEY_AND_STR(CUBLAS_STATUS_EXECUTION_FAILED),
+        ADD_KEY_AND_STR(CUBLAS_STATUS_INTERNAL_ERROR),
+        ADD_KEY_AND_STR(CUBLAS_STATUS_NOT_SUPPORTED),
+        ADD_KEY_AND_STR(CUBLAS_STATUS_LICENSE_ERROR)
+    };
+    return kErr2Str.at(err);
+}
+
 Dtypes_t GetGemmDtype(int id) {
     const static std::vector<Dtypes_t> kGemmDtypes{
         Dtypes_t{CUDA_R_16F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F},
@@ -34,22 +49,6 @@ int Dtype2Size(cudaDataType_t dtype) {
         {CUDA_C_64F, 16}
     };
     return kDtype2Size.at(dtype);
-}
-
-std::string cublasGetErrorString(cublasStatus_t err)
-{
-    const static std::map<cublasStatus_t, std::string> kErr2Str{
-        ADD_KEY_AND_STR(CUBLAS_STATUS_NOT_INITIALIZED),
-        ADD_KEY_AND_STR(CUBLAS_STATUS_ALLOC_FAILED),
-        ADD_KEY_AND_STR(CUBLAS_STATUS_INVALID_VALUE),
-        ADD_KEY_AND_STR(CUBLAS_STATUS_ARCH_MISMATCH),
-        ADD_KEY_AND_STR(CUBLAS_STATUS_MAPPING_ERROR),
-        ADD_KEY_AND_STR(CUBLAS_STATUS_EXECUTION_FAILED),
-        ADD_KEY_AND_STR(CUBLAS_STATUS_INTERNAL_ERROR),
-        ADD_KEY_AND_STR(CUBLAS_STATUS_NOT_SUPPORTED),
-        ADD_KEY_AND_STR(CUBLAS_STATUS_LICENSE_ERROR)
-    };
-    return kErr2Str.at(err);
 }
 
 std::string Operation2Str(cublasOperation_t op) {
@@ -126,8 +125,7 @@ std::string Algo2Str(cublasGemmAlgo_t algo) {
     return kAlgo2Str.at(algo);
 }
 
-void* AllocAlphaScale(cudaDataType_t dtype)
-{
+void* AllocAlphaScale(cudaDataType_t dtype) {
     void* ptr = nullptr;
     ptr = malloc(Dtype2Size(dtype));
     switch (dtype) {
@@ -204,8 +202,7 @@ bool SortResult (const Result_t& x, const Result_t& y) {
 }
 
 void PrintResult(const char dev_name[], const Param_t& param,
-    const std::vector<Result_t>& results) 
-{
+    const std::vector<Result_t>& results) {
     std::cout << "device, op(A), op(B), "
         "m, n, k, ComputeType, Atype, Btype, Ctype, "
         "Dp4aRestrictions(lda.ldb), TensorCoreRestrictions(m.k.A.B.C.lda.ldb.ldc), "
