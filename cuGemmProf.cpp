@@ -32,7 +32,7 @@ cxxopts::ParseResult Parse(int argc, const char* argv[]) {
         ("all_algo", "run all algorithms")
         ("w, workspace", "workspace size, unit: MiB", cxxopts::value<size_t>()->default_value("0"))
         ("g, debug", "dump matrices if verification is failed")
-        ("help", "print help");
+        ("h, help", "print help");
 
         auto result = options.parse(argc, (char**&)argv);
 
