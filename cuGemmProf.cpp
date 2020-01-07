@@ -6,14 +6,10 @@
 #include "verify.h"
 #include <cublas_v2.h>
 #include <cublasLt.h>
-#include <algorithm>
-#include <map>
 #include <string>
 #include <iostream>
 #include <cstdlib>
 #include <cstring>
-#include <cfloat>
-#include <cstdint>
 
 cxxopts::ParseResult Parse(int argc, const char* argv[]) {
     try {
@@ -64,44 +60,6 @@ cxxopts::ParseResult Parse(int argc, const char* argv[]) {
         std::cout << "error parsing options: " << e.what() << std::endl;
         exit(EXIT_FAILURE);
     }
-}
-
-std::string Mask2Str(const std::vector<bool>& mask) {
-    std::string info;
-    auto count = std::count_if(mask.begin(), mask.end(),
-        [](bool x) { return x; });
-    if (count == mask.size()) {
-        info = "all meet, ";
-    }
-    else {
-        info = "(";
-        for (auto bit : mask) {
-            info += std::to_string(static_cast<int>(bit)) + ".";
-        }
-        info += "), ";
-    }
-    return info;
-}
-
-std::string Dp4aRestrictions(const Param_t& param) {
-    std::vector<bool> mask(2);
-    mask[0] = param.lda % 4 == 0;
-    mask[1] = param.ldb % 4 == 0;
-    return Mask2Str(mask);
-}
-
-std::string TensorCoreRestrictions(const Param_t& param) {
-    // refer to https://docs.nvidia.com/cuda/cublas/#tensorop-restrictions
-    std::vector<bool> mask(8);
-    mask[0] = param.m % 4 == 0;
-    mask[1] = param.k % 8 == 0;
-    mask[2] = reinterpret_cast<intptr_t>(param.A) % 16 == 0;
-    mask[3] = reinterpret_cast<intptr_t>(param.B) % 16 == 0;
-    mask[4] = reinterpret_cast<intptr_t>(param.C) % 16 == 0;
-    mask[5] = param.lda % (16 / Dtype2Size(param.dtype.Atype)) == 0;
-    mask[6] = param.ldb % (16 / Dtype2Size(param.dtype.Btype)) == 0;
-    mask[7] = param.ldc % (16 / Dtype2Size(param.dtype.Ctype)) == 0;
-    return Mask2Str(mask);
 }
 
 int main (int argc, const char* argv[]) {

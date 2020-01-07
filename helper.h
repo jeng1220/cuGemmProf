@@ -61,3 +61,6 @@ struct Result_t {
 bool SortResult (const Result_t& x, const Result_t& y);
 
 void* AllocAlphaScale(cudaDataType_t dtype);
+
+std::string Dp4aRestrictions(const Param_t& param);
+std::string TensorCoreRestrictions(const Param_t& param);
