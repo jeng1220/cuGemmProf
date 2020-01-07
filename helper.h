@@ -2,6 +2,7 @@
 #include <cublas_v2.h>
 #include <iostream>
 #include <string>
+
 int Dtype2Size(cudaDataType_t dtype);
 std::string cublasGetErrorString(cublasStatus_t err);
 std::string Operation2Str(cublasOperation_t op);
