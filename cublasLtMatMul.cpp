@@ -130,7 +130,7 @@ void ProfileAllGemmAlgoLt(cublasLtHandle_t handle, cublasLtMatmulDesc_t op_desc,
     }
 }
 
-std::vector<Result_t> ProfileGemmLt(const Param_t& param, int loop) {
+std::vector<Result_t> ProfileGemmLt(const Param_t& param, int loop, bool debug) {
     cublasLtHandle_t handle;
     CUBLAS_API_CALL(cublasLtCreate(&handle));
 
@@ -220,6 +220,7 @@ std::vector<Result_t> ProfileGemmLt(const Param_t& param, int loop) {
     // optional, use heuristic approach to select best GEMM kernel,
     // but not support IMMA currently
     bool fault = false;
+    cublasStatus_t ret;
     cublasLtMatmulHeuristicResult_t result{};
     if (!use_imma) {
         cublasLtMatmulPreference_t preference;
@@ -231,7 +232,7 @@ std::vector<Result_t> ProfileGemmLt(const Param_t& param, int loop) {
         //ProfileAllGemmAlgoLt(handle, op_desc, param, lt_param, loop);
 
         int nb_result = 0;
-        cublasStatus_t ret = cublasLtMatmulAlgoGetHeuristic(
+        ret = cublasLtMatmulAlgoGetHeuristic(
             handle, op_desc, Adesc, Bdesc, Cdesc, Cdesc, preference,
             1, &result, &nb_result);
         if (nb_result > 0) {
@@ -251,13 +252,21 @@ std::vector<Result_t> ProfileGemmLt(const Param_t& param, int loop) {
     RUNTIME_API_CALL(cudaEventRecord(start));
     for (int i = 0; i < loop && !fault; ++i) {
 
-        CUBLAS_API_CALL(cublasLtMatmul(handle, op_desc, 
-                                       param.alpha, lt_param.A, lt_param.A_desc,
-                                       lt_param.B, lt_param.B_desc, param.beta,
-                                       lt_param.C, lt_param.C_desc,
-                                       lt_param.C, lt_param.C_desc,
-                                       lt_param.algo,
-                                       lt_param.workspace, lt_param.workspace_size, 0));
+        ret = cublasLtMatmul(handle, op_desc, 
+                             param.alpha, lt_param.A, lt_param.A_desc,
+                             lt_param.B, lt_param.B_desc, param.beta,
+                             lt_param.C, lt_param.C_desc,
+                             lt_param.C, lt_param.C_desc,
+                             lt_param.algo,
+                             lt_param.workspace, lt_param.workspace_size, 0);
+        if (ret != CUBLAS_STATUS_SUCCESS) {
+            fault = true;
+            if (debug) {
+                std::cerr << "cublasLtMatmul" << ", " << 
+                    ", " << cublasGetErrorString(ret) << std::endl;
+            }
+            break;
+        }
     }
     RUNTIME_API_CALL(cudaEventRecord(end));   
     RUNTIME_API_CALL(cudaEventSynchronize(end));
@@ -286,7 +295,8 @@ std::vector<Result_t> ProfileGemmLt(const Param_t& param, int loop) {
 
     if (!fault) {
         fault = !Verify(param.C, param.D, param.m * param.n, param.dtype.Ctype);
-        if (fault) {
+        if (fault && debug) {
+            std::cerr << "cublasLtMatmul verification failed" << std::endl;
             PrintMatrix(param.A, param.m, param.k, param.lda, param.dtype.Atype);
             PrintMatrix(param.B, param.k, param.n, param.ldb, param.dtype.Btype);
             PrintMatrix(param.C, param.m, param.n, param.ldc, param.dtype.Ctype);

@@ -59,7 +59,7 @@ std::vector<cublasGemmAlgo_t> AllTensorCoreAlgo() {
 }
 
 std::vector<Result_t> ProfileGemm(const Param_t& param,
-    const std::vector<cublasGemmAlgo_t>& algos, int loop) {
+    const std::vector<cublasGemmAlgo_t>& algos, int loop, bool debug) {
 
     cublasHandle_t handle;
     CUBLAS_API_CALL(cublasCreate(&handle));
@@ -89,9 +89,9 @@ std::vector<Result_t> ProfileGemm(const Param_t& param,
                                param.dtype.computeType, algo);
             if (ret != CUBLAS_STATUS_SUCCESS) {
                 fault = true;
-                if (ret != CUBLAS_STATUS_NOT_SUPPORTED &&
-                    ret != CUBLAS_STATUS_INVALID_VALUE) {
-                    CUBLAS_API_CALL(ret);
+                if (debug) {
+                    std::cerr << "cublasGemmEx" << ", " << Algo2Str(algo) << 
+                        ", " << cublasGetErrorString(ret) << std::endl;
                 }
                 break;
             }
@@ -102,7 +102,8 @@ std::vector<Result_t> ProfileGemm(const Param_t& param,
 
         if (!fault) {
             fault = !Verify(param.C, param.D, param.m * param.n, param.dtype.Ctype);
-            if (fault) {
+            if (fault && debug) {
+                std::cerr << "cublasGemmEx" << ", " << Algo2Str(algo) << ", verification failed" << std::endl;
                 PrintMatrix(param.A, param.m, param.k, param.lda, param.dtype.Atype);
                 PrintMatrix(param.B, param.k, param.n, param.ldb, param.dtype.Btype);
                 PrintMatrix(param.C, param.m, param.n, param.ldc, param.dtype.Ctype);

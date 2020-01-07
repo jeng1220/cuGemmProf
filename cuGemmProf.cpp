@@ -31,6 +31,7 @@ cxxopts::ParseResult Parse(int argc, const char* argv[]) {
         ("tensor_algo", "assgin TensorOp algorithm ID (0~15)", cxxopts::value< std::vector<int> >())
         ("all_algo", "run all algorithms")
         ("w, workspace", "workspace size, unit: MiB", cxxopts::value<size_t>()->default_value("0"))
+        ("g, debug", "dump matrices if verification is failed")
         ("help", "print help");
 
         auto result = options.parse(argc, (char**&)argv);
@@ -97,16 +98,19 @@ int main (int argc, const char* argv[]) {
     else {
         if (result.count("algo")) {
             auto algos = result["algo"].as< std::vector<int> >();
+            selected_cuda_algo.clear();
             for (auto algo : algos)
                 selected_cuda_algo.push_back(static_cast<cublasGemmAlgo_t>(algo + CUBLAS_GEMM_ALGO0));
         }
         if (result.count("tensor_algo")) {
             auto algos = result["tensor_algo"].as< std::vector<int> >();
+            selected_tensor_algo.clear();
             for (auto algo : algos) 
                 selected_tensor_algo.push_back(static_cast<cublasGemmAlgo_t>(algo + CUBLAS_GEMM_ALGO0_TENSOR_OP));
         }
     }
 
+    auto debug = result.count("g");
     auto loop = result["l"].as<int>();
     auto selected_dtypes = result["type"].as< std::vector<int> >();
 
@@ -163,16 +167,15 @@ int main (int argc, const char* argv[]) {
             param.D, param.dtype.Ctype, param.ldc,
             param.dtype.computeType);
 
-        auto results = ProfileGemm(param, selected_cuda_algo, loop);
+        auto results = ProfileGemm(param, selected_cuda_algo, loop, debug);
         PrintResult(prop.name, param, results);
 
-
         if (prop.major > 6) {
-            results = ProfileGemm(param, selected_tensor_algo, loop);
+            results = ProfileGemm(param, selected_tensor_algo, loop, debug);
             PrintResult(prop.name, param, results);
         }
 
-        results = ProfileGemmLt(param, loop);
+        results = ProfileGemmLt(param, loop, debug);
         PrintResult(prop.name, param, results);
 
         RUNTIME_API_CALL(cudaFree(dev_A));
