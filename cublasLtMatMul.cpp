@@ -46,8 +46,7 @@ struct AlgoAttr_t {
     }
 };
 
-struct CublasLtParam_t
-{
+struct CublasLtParam_t {
     cublasLtMatrixLayout_t A_desc;
     cublasLtMatrixLayout_t B_desc;
     cublasLtMatrixLayout_t C_desc;
@@ -59,7 +58,78 @@ struct CublasLtParam_t
     size_t workspace_size;
 };
 
-void ProfileAllGemmAlgoLt(cublasLtHandle_t handle, cublasLtMatmulDesc_t op_desc, const Param_t& param, const CublasLtParam_t& lt_param, int loop) {
+struct ImmaParam_t {
+    bool use_imma;
+    cublasLtMatrixTransformDesc_t transform_desc;
+    cublasLtMatrixLayout_t origin_desc;
+};
+
+Result_t RunMatMul(cublasLtHandle_t handle, cublasLtMatmulDesc_t op_desc,
+    const Param_t& param, const CublasLtParam_t& lt_param, 
+    const ImmaParam_t& imma_param, int loop, bool debug,
+    std::string algo_name)
+{
+    cublasStatus_t ret;
+    cudaEvent_t start;
+    cudaEvent_t end;
+    bool fault = false;
+    RUNTIME_API_CALL(cudaEventCreate(&start));
+    RUNTIME_API_CALL(cudaEventCreate(&end));
+    RUNTIME_API_CALL(cudaEventRecord(start));
+    for (int i = 0; i < loop; ++i) {
+
+        ret = cublasLtMatmul(handle, op_desc, 
+                             param.alpha, lt_param.A, lt_param.A_desc,
+                             lt_param.B, lt_param.B_desc, param.beta,
+                             lt_param.C, lt_param.C_desc,
+                             lt_param.C, lt_param.C_desc,
+                             lt_param.algo,
+                             lt_param.workspace, lt_param.workspace_size, 0);
+        if (ret != CUBLAS_STATUS_SUCCESS) {
+            fault = true;
+            if (debug) {
+                std::cerr << "cublasLtMatmul" << ", " << 
+                    ", " << cublasGetErrorString(ret) << std::endl;
+            }
+            break;
+        }
+    }
+    RUNTIME_API_CALL(cudaEventRecord(end));   
+    RUNTIME_API_CALL(cudaEventSynchronize(end));
+
+    if (imma_param.use_imma && !fault) {
+        float alpha = 1.0f;
+        float beta = 0.0f;
+        CUBLAS_API_CALL(cublasLtMatrixTransform(handle, imma_param.transform_desc,
+            &alpha, lt_param.C, lt_param.C_desc,
+            &beta, nullptr, nullptr, param.C, imma_param.origin_desc, 0));
+        RUNTIME_API_CALL(cudaStreamSynchronize(0));
+    }
+
+    if (!fault) {
+        fault = !Verify(param.C, param.D, param.m * param.n, param.dtype.Ctype);
+        if (fault && debug) {
+            std::cerr << "cublasLtMatmul verification failed" << std::endl;
+            PrintMatrix(param.A, param.m, param.k, param.lda, param.dtype.Atype);
+            PrintMatrix(param.B, param.k, param.n, param.ldb, param.dtype.Btype);
+            PrintMatrix(param.C, param.m, param.n, param.ldc, param.dtype.Ctype);
+            PrintMatrix(param.D, param.m, param.n, param.ldc, param.dtype.Ctype);
+        }
+    }
+    RUNTIME_API_CALL(cudaMemset(param.C, 0, param.m * param.n * Dtype2Size(param.dtype.Ctype)));
+
+    float time = 0.f;
+    RUNTIME_API_CALL(cudaEventElapsedTime(&time, start, end));
+    RUNTIME_API_CALL(cudaEventDestroy(start));
+    RUNTIME_API_CALL(cudaEventDestroy(end));
+
+    time = fault ? FLT_MAX : (time / loop);
+    return Result_t{algo_name, time};
+}
+
+std::vector<Result_t> ProfileAllGemmAlgoLt(cublasLtHandle_t handle, cublasLtMatmulDesc_t op_desc,
+    const Param_t& param, CublasLtParam_t& lt_param, const ImmaParam_t& imma_param, int loop, bool debug) {
+
     const int max_algos = 40;
     std::vector<int> algo_ids(max_algos);
     int nb_algo_id = 0;
@@ -70,8 +140,10 @@ void ProfileAllGemmAlgoLt(cublasLtHandle_t handle, cublasLtMatmulDesc_t op_desc,
         max_algos, algo_ids.data(), &nb_algo_id));
     algo_ids.resize(nb_algo_id);
 
+    std::vector<Result_t> results;
     const int max_combine_option = 6000;
     int combine_count = 0;
+
     for (int idx = 0; (idx < nb_algo_id) && (combine_count < max_combine_option); idx++) {
         cublasLtMatmulAlgo_t algo;
         CUBLAS_API_CALL(cublasLtMatmulAlgoInit(handle, 
@@ -90,47 +162,66 @@ void ProfileAllGemmAlgoLt(cublasLtHandle_t handle, cublasLtMatmulDesc_t op_desc,
                 CUBLAS_API_CALL(cublasLtMatmulAlgoConfigSetAttribute(
                     &algo, CUBLASLT_ALGO_CONFIG_CUSTOM_OPTION, &c, sizeof(int)));
  
-                // is it really needed ?
                 for (int s = 0; s <= algo_attr.swizzling_support; ++s) {
  
                     CUBLAS_API_CALL(cublasLtMatmulAlgoConfigSetAttribute(
                         &algo, CUBLASLT_ALGO_CONFIG_CTA_SWIZZLING, &s, sizeof(int)));
  
-                    const static std::vector<int> num_split_k_option{0, 1, 2, 3, 4, 5, 6, 8, 12, 16, 32};
+                    const static std::vector<int> num_split_k_option{1, 2, 3, 4};
                     for (auto splite_k : num_split_k_option) {
+
+                        if (splite_k > 1 && !algo_attr.splite_k_support) continue;
+
                         CUBLAS_API_CALL(cublasLtMatmulAlgoConfigSetAttribute(&algo,
                             CUBLASLT_ALGO_CONFIG_SPLITK_NUM, &splite_k, sizeof(int)));
  
                         const static std::vector<cublasLtReductionScheme_t> reductions{
-                            /*CUBLASLT_REDUCTION_SCHEME_NONE,*/
+                            CUBLASLT_REDUCTION_SCHEME_NONE,
                             CUBLASLT_REDUCTION_SCHEME_INPLACE,
                             CUBLASLT_REDUCTION_SCHEME_COMPUTE_TYPE,
-                            CUBLASLT_REDUCTION_SCHEME_OUTPUT_TYPE,
-                            CUBLASLT_REDUCTION_SCHEME_MASK};
+                            CUBLASLT_REDUCTION_SCHEME_OUTPUT_TYPE};
+
                         for (auto reduction : reductions) {
  
-                            if (reduction & algo_attr.reduction_scheme_mask) {
-                                CUBLAS_API_CALL(cublasLtMatmulAlgoConfigSetAttribute(
-                                    &algo, CUBLASLT_ALGO_CONFIG_REDUCTION_SCHEME, &reduction, sizeof(int)));
- 
-                                cublasLtMatmulHeuristicResult_t heur_result;
-                                CUBLAS_API_CALL(cublasLtMatmulAlgoCheck(handle, op_desc,
-                                    lt_param.A_desc, lt_param.B_desc, lt_param.C_desc, lt_param.C_desc,
-                                    &algo, &heur_result));
+                            if (splite_k == 1 && reduction != CUBLASLT_REDUCTION_SCHEME_NONE)
+                                continue;
 
-                                if (heur_result.workspaceSize <= lt_param.workspace_size) {
-                                    // call cublasLtMatmul(..., algo, ...); here
-                                }
+                            if (splite_k > 1 && !(reduction & algo_attr.reduction_scheme_mask))
+                                continue;
+
+                            CUBLAS_API_CALL(cublasLtMatmulAlgoConfigSetAttribute(
+                                &algo, CUBLASLT_ALGO_CONFIG_REDUCTION_SCHEME, &reduction, sizeof(int)));
+ 
+                            cublasLtMatmulHeuristicResult_t heur_result;
+                            cublasStatus_t ret;
+                            ret = (cublasLtMatmulAlgoCheck(handle, op_desc,
+                                lt_param.A_desc, lt_param.B_desc, lt_param.C_desc, lt_param.C_desc,
+                                &algo, &heur_result));
+
+                            if (ret == CUBLAS_STATUS_SUCCESS &&
+                                heur_result.state == CUBLAS_STATUS_SUCCESS &&
+                                heur_result.workspaceSize <= lt_param.workspace_size) {
+                                lt_param.algo = &algo;
+
+                                results.push_back(RunMatMul(handle, op_desc, param,
+                                    lt_param, imma_param, loop, debug, "CUBLASLT_ALL_ALG"));
+                                combine_count++;
                             }
-                        }
-                    }
-                }
-            }
-        }
-    }
+                            else if (debug) {
+                                std::cerr << "cublasLtMatmulAlgoCheck, " << cublasGetErrorString(ret) << 
+                                    ", needed workspace size, " << heur_result.workspaceSize << 
+                                    ", current workspace size, " << lt_param.workspace_size << std::endl;
+                            }
+                        } // end of reduction scheme
+                    } // end of splite-k
+                } // end of swizzling support
+            } // end of cutom option
+        } // end of tile size
+    } // end of algorithm
+    return results;
 }
 
-std::vector<Result_t> ProfileGemmLt(const Param_t& param, int loop, bool debug) {
+std::vector<Result_t> ProfileGemmLt(const Param_t& param, bool all_algo, int loop, bool debug) {
     cublasLtHandle_t handle;
     CUBLAS_API_CALL(cublasLtCreate(&handle));
 
@@ -163,6 +254,7 @@ std::vector<Result_t> ProfileGemmLt(const Param_t& param, int loop, bool debug) 
                     param.transa == CUBLAS_OP_N &&
                     param.transb == CUBLAS_OP_T;
 
+    ImmaParam_t imma_param{false};
     cublasLtMatrixTransformDesc_t transformDesc;
     if (use_imma) {
         void* Atransform;
@@ -198,15 +290,15 @@ std::vector<Result_t> ProfileGemmLt(const Param_t& param, int loop, bool debug) 
 
         CUBLAS_API_CALL(cublasLtMatrixTransformDescCreate(&transformDesc,
             CUDA_R_32F));
-        float transformAlpha = 1.0f;
-        float transformBeta = 0.0f;
+        float alpha = 1.0f;
+        float beta = 0.0f;
         CUBLAS_API_CALL(cublasLtMatrixTransform(handle, transformDesc,
-            &transformAlpha, param.A, Adesc,
-            &transformBeta, nullptr, nullptr, Atransform, AtransformDesc, 0));
+            &alpha, param.A, Adesc,
+            &beta, nullptr, nullptr, Atransform, AtransformDesc, 0));
 
         CUBLAS_API_CALL(cublasLtMatrixTransform(handle, transformDesc,
-            &transformAlpha, param.B, Bdesc,
-            &transformBeta, nullptr, nullptr, Btransform, BtransformDesc, 0));
+            &alpha, param.B, Bdesc,
+            &beta, nullptr, nullptr, Btransform, BtransformDesc, 0));
         RUNTIME_API_CALL(cudaStreamSynchronize(0));
 
         lt_param.A_desc = AtransformDesc;
@@ -215,69 +307,51 @@ std::vector<Result_t> ProfileGemmLt(const Param_t& param, int loop, bool debug) 
         lt_param.A = Atransform;
         lt_param.B = Btransform;
         lt_param.C = Ctransform;
+
+        imma_param.use_imma = true;
+        imma_param.transform_desc = transformDesc;
+        imma_param.origin_desc = Cdesc;
     }
 
-    // optional, use heuristic approach to select best GEMM kernel,
-    // but not support IMMA currently
-    bool fault = false;
-    cublasStatus_t ret;
-    cublasLtMatmulHeuristicResult_t result{};
-    if (!use_imma) {
-        cublasLtMatmulPreference_t preference;
-        CUBLAS_API_CALL(cublasLtMatmulPreferenceCreate(&preference));
-        CUBLAS_API_CALL(cublasLtMatmulPreferenceSetAttribute(
-            preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
-            &lt_param.workspace_size, sizeof(size_t)));
+    std::vector<Result_t> results;
+    if (all_algo) {
+        results = ProfileAllGemmAlgoLt(handle, op_desc, param, lt_param, imma_param, loop, debug);
+    }
+    else {
+        cublasLtMatmulHeuristicResult_t result{};
+        std::string algo_name{"CUBLASLT_DEFAULT_ALG"};
 
-        //ProfileAllGemmAlgoLt(handle, op_desc, param, lt_param, loop);
-
-        int nb_result = 0;
-        ret = cublasLtMatmulAlgoGetHeuristic(
-            handle, op_desc, Adesc, Bdesc, Cdesc, Cdesc, preference,
-            1, &result, &nb_result);
-        if (nb_result > 0) {
-            lt_param.algo = &result.algo;
+        if (use_imma) {
+            algo_name = "CUBLASLT_IMMA_ALG";
         }
         else {
-            fault = true;
-            std::cerr << cublasGetErrorString(ret) << std::endl;
-        }
-        CUBLAS_API_CALL(cublasLtMatmulPreferenceDestroy(preference));
-    }
+            // optional, use heuristic approach to select best GEMM kernel,
+            // but not support IMMA currently
+            cublasLtMatmulPreference_t preference;
+            CUBLAS_API_CALL(cublasLtMatmulPreferenceCreate(&preference));
+            CUBLAS_API_CALL(cublasLtMatmulPreferenceSetAttribute(
+                preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+                &lt_param.workspace_size, sizeof(size_t)));
 
-    cudaEvent_t start;
-    cudaEvent_t end;
-    RUNTIME_API_CALL(cudaEventCreate(&start));
-    RUNTIME_API_CALL(cudaEventCreate(&end));
-    RUNTIME_API_CALL(cudaEventRecord(start));
-    for (int i = 0; i < loop && !fault; ++i) {
-
-        ret = cublasLtMatmul(handle, op_desc, 
-                             param.alpha, lt_param.A, lt_param.A_desc,
-                             lt_param.B, lt_param.B_desc, param.beta,
-                             lt_param.C, lt_param.C_desc,
-                             lt_param.C, lt_param.C_desc,
-                             lt_param.algo,
-                             lt_param.workspace, lt_param.workspace_size, 0);
-        if (ret != CUBLAS_STATUS_SUCCESS) {
-            fault = true;
-            if (debug) {
-                std::cerr << "cublasLtMatmul" << ", " << 
-                    ", " << cublasGetErrorString(ret) << std::endl;
+            int nb_result = 0;
+            auto ret = cublasLtMatmulAlgoGetHeuristic(
+                handle, op_desc, Adesc, Bdesc, Cdesc, Cdesc, preference,
+                1, &result, &nb_result);
+            if (nb_result > 0) {
+                algo_name = "CUBLASLT_HEURISTIC_ALG";
+                lt_param.algo = &result.algo;
             }
-            break;
+            else if (debug) {
+                std::cerr << "cublasLtMatmulAlgoGetHeuristic, " << cublasGetErrorString(ret) << std::endl;
+            }
+            CUBLAS_API_CALL(cublasLtMatmulPreferenceDestroy(preference));
         }
+
+        results.push_back(RunMatMul(handle, op_desc, param, lt_param, imma_param,
+            loop, debug, algo_name));
     }
-    RUNTIME_API_CALL(cudaEventRecord(end));   
-    RUNTIME_API_CALL(cudaEventSynchronize(end));
 
     if (use_imma) {
-        float transformAlpha = 1.0f;
-        float transformBeta = 0.0f;
-        CUBLAS_API_CALL(cublasLtMatrixTransform(handle, transformDesc,
-            &transformAlpha, lt_param.C, lt_param.C_desc,
-            &transformBeta, nullptr, nullptr, param.C, Cdesc, 0));
-        RUNTIME_API_CALL(cudaStreamSynchronize(0));
         RUNTIME_API_CALL(cudaFree(lt_param.A));
         RUNTIME_API_CALL(cudaFree(lt_param.B));
         RUNTIME_API_CALL(cudaFree(lt_param.C));
@@ -286,34 +360,11 @@ std::vector<Result_t> ProfileGemmLt(const Param_t& param, int loop, bool debug) 
         CUBLAS_API_CALL(cublasLtMatrixLayoutDestroy(lt_param.C_desc));
         CUBLAS_API_CALL(cublasLtMatrixTransformDescDestroy(transformDesc));
     }
-
     CUBLAS_API_CALL(cublasLtMatrixLayoutDestroy(Cdesc));
     CUBLAS_API_CALL(cublasLtMatrixLayoutDestroy(Bdesc));
     CUBLAS_API_CALL(cublasLtMatrixLayoutDestroy(Adesc));
     CUBLAS_API_CALL(cublasLtMatmulDescDestroy(op_desc));
     CUBLAS_API_CALL(cublasLtDestroy(handle));
-
-    if (!fault) {
-        fault = !Verify(param.C, param.D, param.m * param.n, param.dtype.Ctype);
-        if (fault && debug) {
-            std::cerr << "cublasLtMatmul verification failed" << std::endl;
-            PrintMatrix(param.A, param.m, param.k, param.lda, param.dtype.Atype);
-            PrintMatrix(param.B, param.k, param.n, param.ldb, param.dtype.Btype);
-            PrintMatrix(param.C, param.m, param.n, param.ldc, param.dtype.Ctype);
-            PrintMatrix(param.D, param.m, param.n, param.ldc, param.dtype.Ctype);
-        }
-    }
-    RUNTIME_API_CALL(cudaMemset(param.C, 0, param.m * param.n * Dtype2Size(param.dtype.Ctype)));
-
-    float time = 0.f;
-    RUNTIME_API_CALL(cudaEventElapsedTime(&time, start, end));
-    RUNTIME_API_CALL(cudaEventDestroy(start));
-    RUNTIME_API_CALL(cudaEventDestroy(end));
-
-    time = fault ? FLT_MAX : (time / loop);
-    auto algo = static_cast<cublasGemmAlgo_t>(use_imma ? CUBLASLT_IMMA_ALG : CUBLASLT_HEURISTIC_ALG);
-    std::vector<Result_t> results;
-    results.push_back(Result_t{Algo2Str(algo), time});
 
     return results;
 }
