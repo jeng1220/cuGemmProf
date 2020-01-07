@@ -8,6 +8,7 @@
 
 std::string cublasGetErrorString(cublasStatus_t err) {
     const static std::map<cublasStatus_t, std::string> kErr2Str{
+        ADD_KEY_AND_STR(CUBLAS_STATUS_SUCCESS),
         ADD_KEY_AND_STR(CUBLAS_STATUS_NOT_INITIALIZED),
         ADD_KEY_AND_STR(CUBLAS_STATUS_ALLOC_FAILED),
         ADD_KEY_AND_STR(CUBLAS_STATUS_INVALID_VALUE),
