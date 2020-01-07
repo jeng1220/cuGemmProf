@@ -67,7 +67,7 @@ struct ImmaParam_t {
 Result_t RunMatMul(cublasLtHandle_t handle, cublasLtMatmulDesc_t op_desc,
     const Param_t& param, const CublasLtParam_t& lt_param, 
     const ImmaParam_t& imma_param, int loop, bool debug,
-    std::string algo_name = "CUBLASLT_DEFAULT_ALG")
+    std::string algo_name)
 {
     cublasStatus_t ret;
     cudaEvent_t start;
@@ -88,7 +88,7 @@ Result_t RunMatMul(cublasLtHandle_t handle, cublasLtMatmulDesc_t op_desc,
         if (ret != CUBLAS_STATUS_SUCCESS) {
             fault = true;
             if (debug) {
-                std::cerr << "RunMatMul::cublasLtMatmul" << ", " << 
+                std::cerr << "cublasLtMatmul" << ", " << 
                     ", " << cublasGetErrorString(ret) << std::endl;
             }
             break;
@@ -128,7 +128,7 @@ Result_t RunMatMul(cublasLtHandle_t handle, cublasLtMatmulDesc_t op_desc,
 }
 
 std::vector<Result_t> ProfileAllGemmAlgoLt(cublasLtHandle_t handle, cublasLtMatmulDesc_t op_desc,
-    const Param_t& param, CublasLtParam_t& lt_param, int loop, bool debug) {
+    const Param_t& param, CublasLtParam_t& lt_param, const ImmaParam_t& imma_param, int loop, bool debug) {
 
     const int max_algos = 40;
     std::vector<int> algo_ids(max_algos);
@@ -168,42 +168,50 @@ std::vector<Result_t> ProfileAllGemmAlgoLt(cublasLtHandle_t handle, cublasLtMatm
                     CUBLAS_API_CALL(cublasLtMatmulAlgoConfigSetAttribute(
                         &algo, CUBLASLT_ALGO_CONFIG_CTA_SWIZZLING, &s, sizeof(int)));
  
-                    const static std::vector<int> num_split_k_option{2, 3, 4, 5, 6, 8, 12, 16, 32};
+                    const static std::vector<int> num_split_k_option{1, 2, 3, 4};
                     for (auto splite_k : num_split_k_option) {
+
+                        if (splite_k > 1 && !algo_attr.splite_k_support) continue;
+
                         CUBLAS_API_CALL(cublasLtMatmulAlgoConfigSetAttribute(&algo,
                             CUBLASLT_ALGO_CONFIG_SPLITK_NUM, &splite_k, sizeof(int)));
  
                         const static std::vector<cublasLtReductionScheme_t> reductions{
-                            /*CUBLASLT_REDUCTION_SCHEME_NONE,*/
+                            CUBLASLT_REDUCTION_SCHEME_NONE,
                             CUBLASLT_REDUCTION_SCHEME_INPLACE,
                             CUBLASLT_REDUCTION_SCHEME_COMPUTE_TYPE,
-                            CUBLASLT_REDUCTION_SCHEME_OUTPUT_TYPE,
-                            CUBLASLT_REDUCTION_SCHEME_MASK};
+                            CUBLASLT_REDUCTION_SCHEME_OUTPUT_TYPE};
+
                         for (auto reduction : reductions) {
  
-                            if (reduction & algo_attr.reduction_scheme_mask) {
-                                CUBLAS_API_CALL(cublasLtMatmulAlgoConfigSetAttribute(
-                                    &algo, CUBLASLT_ALGO_CONFIG_REDUCTION_SCHEME, &reduction, sizeof(int)));
+                            if (splite_k == 1 && reduction != CUBLASLT_REDUCTION_SCHEME_NONE)
+                                continue;
+
+                            if (splite_k > 1 && !(reduction & algo_attr.reduction_scheme_mask))
+                                continue;
+
+                            CUBLAS_API_CALL(cublasLtMatmulAlgoConfigSetAttribute(
+                                &algo, CUBLASLT_ALGO_CONFIG_REDUCTION_SCHEME, &reduction, sizeof(int)));
  
-                                cublasLtMatmulHeuristicResult_t heur_result;
-                                cublasStatus_t ret;
-                                ret = (cublasLtMatmulAlgoCheck(handle, op_desc,
-                                    lt_param.A_desc, lt_param.B_desc, lt_param.C_desc, lt_param.C_desc,
-                                    &algo, &heur_result));
+                            cublasLtMatmulHeuristicResult_t heur_result;
+                            cublasStatus_t ret;
+                            ret = (cublasLtMatmulAlgoCheck(handle, op_desc,
+                                lt_param.A_desc, lt_param.B_desc, lt_param.C_desc, lt_param.C_desc,
+                                &algo, &heur_result));
 
-                                if (ret == CUBLAS_STATUS_SUCCESS &&
-                                    heur_result.state == CUBLAS_STATUS_SUCCESS &&
-                                    heur_result.workspaceSize <= lt_param.workspace_size) {
-                                    lt_param.algo = &algo;
+                            if (ret == CUBLAS_STATUS_SUCCESS &&
+                                heur_result.state == CUBLAS_STATUS_SUCCESS &&
+                                heur_result.workspaceSize <= lt_param.workspace_size) {
+                                lt_param.algo = &algo;
 
-                                    ImmaParam_t imma_param{};
-                                    results.push_back(RunMatMul(handle, op_desc, param,
-                                        lt_param, imma_param, loop, debug));
-                                    combine_count++;
-                                }
-                                else if (debug) {
-                                    std::cerr << "cublasLtMatmulAlgoCheck, " << cublasGetErrorString(ret) << std::endl;
-                                }
+                                results.push_back(RunMatMul(handle, op_desc, param,
+                                    lt_param, imma_param, loop, debug, "CUBLASLT_DEFAULT_ALG"));
+                                combine_count++;
+                            }
+                            else if (debug) {
+                                std::cerr << "cublasLtMatmulAlgoCheck, " << cublasGetErrorString(ret) << 
+                                    ", needed workspace size, " << heur_result.workspaceSize << 
+                                    ", current workspace size, " << lt_param.workspace_size << std::endl;
                             }
                         }
                     }
@@ -307,7 +315,7 @@ std::vector<Result_t> ProfileGemmLt(const Param_t& param, int loop, bool debug) 
     }
 
     std::vector<Result_t> results;
-    results = ProfileAllGemmAlgoLt(handle, op_desc, param, lt_param, loop, debug);
+    results = ProfileAllGemmAlgoLt(handle, op_desc, param, lt_param, imma_param, loop, debug);
 
     cublasLtMatmulHeuristicResult_t result{};
     std::string algo_name{"CUBLASLT_DEFAULT_ALG"};
