@@ -91,7 +91,9 @@ int main (int argc, const char* argv[]) {
 
     std::vector<cublasGemmAlgo_t> selected_cuda_algo{CUBLAS_GEMM_DEFAULT};
     std::vector<cublasGemmAlgo_t> selected_tensor_algo{CUBLAS_GEMM_DEFAULT_TENSOR_OP};
-    if (result.count("all_algo")) {
+    auto run_all_algo = result.count("all_algo");
+
+    if (run_all_algo) {
         selected_cuda_algo = AllCudaCoreAlgo();
         selected_tensor_algo = AllTensorCoreAlgo();
     }
@@ -175,7 +177,7 @@ int main (int argc, const char* argv[]) {
             PrintResult(prop.name, param, results);
         }
 
-        results = ProfileGemmLt(param, loop, debug);
+        results = ProfileGemmLt(param, run_all_algo, loop, debug);
         PrintResult(prop.name, param, results);
 
         RUNTIME_API_CALL(cudaFree(dev_A));

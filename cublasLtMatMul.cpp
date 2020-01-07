@@ -204,7 +204,7 @@ std::vector<Result_t> ProfileAllGemmAlgoLt(cublasLtHandle_t handle, cublasLtMatm
                                 lt_param.algo = &algo;
 
                                 results.push_back(RunMatMul(handle, op_desc, param,
-                                    lt_param, imma_param, loop, debug, "CUBLASLT_DEFAULT_ALG"));
+                                    lt_param, imma_param, loop, debug, "CUBLASLT_ALL_ALG"));
                                 combine_count++;
                             }
                             else if (debug) {
@@ -221,7 +221,7 @@ std::vector<Result_t> ProfileAllGemmAlgoLt(cublasLtHandle_t handle, cublasLtMatm
     return results;
 }
 
-std::vector<Result_t> ProfileGemmLt(const Param_t& param, int loop, bool debug) {
+std::vector<Result_t> ProfileGemmLt(const Param_t& param, bool all_algo, int loop, bool debug) {
     cublasLtHandle_t handle;
     CUBLAS_API_CALL(cublasLtCreate(&handle));
 
@@ -314,39 +314,42 @@ std::vector<Result_t> ProfileGemmLt(const Param_t& param, int loop, bool debug) 
     }
 
     std::vector<Result_t> results;
-    results = ProfileAllGemmAlgoLt(handle, op_desc, param, lt_param, imma_param, loop, debug);
-
-    cublasLtMatmulHeuristicResult_t result{};
-    std::string algo_name{"CUBLASLT_DEFAULT_ALG"};
-
-    if (use_imma) {
-        algo_name = "CUBLASLT_IMMA_ALG";
+    if (all_algo) {
+        results = ProfileAllGemmAlgoLt(handle, op_desc, param, lt_param, imma_param, loop, debug);
     }
     else {
-        // optional, use heuristic approach to select best GEMM kernel,
-        // but not support IMMA currently
-        cublasLtMatmulPreference_t preference;
-        CUBLAS_API_CALL(cublasLtMatmulPreferenceCreate(&preference));
-        CUBLAS_API_CALL(cublasLtMatmulPreferenceSetAttribute(
-            preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
-            &lt_param.workspace_size, sizeof(size_t)));
+        cublasLtMatmulHeuristicResult_t result{};
+        std::string algo_name{"CUBLASLT_DEFAULT_ALG"};
 
-        int nb_result = 0;
-        auto ret = cublasLtMatmulAlgoGetHeuristic(
-            handle, op_desc, Adesc, Bdesc, Cdesc, Cdesc, preference,
-            1, &result, &nb_result);
-        if (nb_result > 0) {
-            algo_name = "CUBLASLT_HEURISTIC_ALG";
-            lt_param.algo = &result.algo;
+        if (use_imma) {
+            algo_name = "CUBLASLT_IMMA_ALG";
         }
-        else if (debug) {
-            std::cerr << "cublasLtMatmulAlgoGetHeuristic, " << cublasGetErrorString(ret) << std::endl;
+        else {
+            // optional, use heuristic approach to select best GEMM kernel,
+            // but not support IMMA currently
+            cublasLtMatmulPreference_t preference;
+            CUBLAS_API_CALL(cublasLtMatmulPreferenceCreate(&preference));
+            CUBLAS_API_CALL(cublasLtMatmulPreferenceSetAttribute(
+                preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+                &lt_param.workspace_size, sizeof(size_t)));
+
+            int nb_result = 0;
+            auto ret = cublasLtMatmulAlgoGetHeuristic(
+                handle, op_desc, Adesc, Bdesc, Cdesc, Cdesc, preference,
+                1, &result, &nb_result);
+            if (nb_result > 0) {
+                algo_name = "CUBLASLT_HEURISTIC_ALG";
+                lt_param.algo = &result.algo;
+            }
+            else if (debug) {
+                std::cerr << "cublasLtMatmulAlgoGetHeuristic, " << cublasGetErrorString(ret) << std::endl;
+            }
+            CUBLAS_API_CALL(cublasLtMatmulPreferenceDestroy(preference));
         }
-        CUBLAS_API_CALL(cublasLtMatmulPreferenceDestroy(preference));
+
+        results.push_back(RunMatMul(handle, op_desc, param, lt_param, imma_param,
+            loop, debug, algo_name));
     }
-
-    results.push_back(RunMatMul(handle, op_desc, param, lt_param, imma_param,
-        loop, debug, algo_name));
 
     if (use_imma) {
         RUNTIME_API_CALL(cudaFree(lt_param.A));
@@ -357,7 +360,6 @@ std::vector<Result_t> ProfileGemmLt(const Param_t& param, int loop, bool debug) 
         CUBLAS_API_CALL(cublasLtMatrixLayoutDestroy(lt_param.C_desc));
         CUBLAS_API_CALL(cublasLtMatrixTransformDescDestroy(transformDesc));
     }
-
     CUBLAS_API_CALL(cublasLtMatrixLayoutDestroy(Cdesc));
     CUBLAS_API_CALL(cublasLtMatrixLayoutDestroy(Bdesc));
     CUBLAS_API_CALL(cublasLtMatrixLayoutDestroy(Adesc));

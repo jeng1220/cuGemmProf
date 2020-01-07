@@ -3,4 +3,4 @@
 #include <string>
 #include <vector>
 
-std::vector<Result_t> ProfileGemmLt(const Param_t& param, int loop, bool debug);
+std::vector<Result_t> ProfileGemmLt(const Param_t& param, bool all_algo, int loop, bool debug);
