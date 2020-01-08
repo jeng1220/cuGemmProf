@@ -304,7 +304,7 @@ ProfResult_t LtMatrixMul(cublasLtHandle_t handle, LtGemmParam_t& lt_param,
     return ProfResult_t{algo_name, time};
 }
 
-std::vector<ProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
+std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
     LtGemmParam_t& lt_param, LtImmaParam_t& imma_param, int loop, bool debug) {
 
     const int max_algos = 40;
@@ -319,7 +319,7 @@ std::vector<ProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
         max_algos, algo_ids.data(), &nb_algo_id));
     algo_ids.resize(nb_algo_id);
 
-    std::vector<ProfResult_t> results;
+    std::vector<LtProfResult_t> results;
     const int max_combine_option = 6000;
     int combine_count = 0;
 
@@ -413,11 +413,13 @@ std::vector<ProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
                                 heur_result.workspaceSize <= lt_param.workspace_size) {
                                 lt_param.algo = &algo;
 
-                                results.push_back(LtMatrixMul(handle,
-                                    lt_param, imma_param, loop, debug, "CUBLASLT_ALL_ALG"));
+                                auto result = LtMatrixMul(handle,
+                                    lt_param, imma_param, loop, debug, "CUBLASLT_ALL_ALG");
 
-                                LtGemmAlgoAttr_t algo_attr{idx, tile_id, reduction, s, c,
+                                LtGemmAlgoAttr_t attr{idx, tile_id, reduction, s, c,
                                     heur_result.workspaceSize, heur_result.wavesCount};
+
+                                results.push_back(LtProfResult_t{attr, result});
                                 combine_count++;
                             }
                             else if (debug) {
@@ -463,7 +465,7 @@ std::vector<cublasLtMatmulHeuristicResult_t> HeuristicLtGemmAlgo(cublasLtHandle_
     return results;
 }
 
-std::vector<ProfResult_t> ProfileLtGemm(const GemmParam_t& param, bool all_algo, int loop, bool debug) {
+std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param, bool all_algo, int loop, bool debug) {
     cublasLtHandle_t handle;
     CUBLAS_API_CALL(cublasLtCreate(&handle));
 
@@ -480,7 +482,7 @@ std::vector<ProfResult_t> ProfileLtGemm(const GemmParam_t& param, bool all_algo,
         imma_param = CreateLtImmaParameter(handle, param, lt_param);
     }
 
-    std::vector<ProfResult_t> results;
+    std::vector<LtProfResult_t> results;
     if (all_algo) {
         results = ProfileAllLtGemmAlgo(handle, lt_param, imma_param, loop, debug);
     }
@@ -499,8 +501,11 @@ std::vector<ProfResult_t> ProfileLtGemm(const GemmParam_t& param, bool all_algo,
             }
         }
 
-        results.push_back(LtMatrixMul(handle, lt_param, imma_param,
-            loop, debug, algo_name));
+        auto result = LtMatrixMul(handle, lt_param, imma_param,
+            loop, debug, algo_name);
+        LtGemmAlgoAttr_t attr;
+        memset(&attr, 0, sizeof(LtGemmAlgoAttr_t));
+        results.push_back(LtProfResult_t{attr, result});
     }
 
     if (use_imma) {

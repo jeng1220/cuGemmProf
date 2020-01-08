@@ -38,6 +38,22 @@ struct ProfResult_t {
     float time;
 };
 
+struct LtGemmAlgoAttr_t {
+    int algo_id;
+    int tile_id;
+    int reduction_scheme;
+    int swizzle;
+    int custom_option;
+    size_t workspace_size;
+    float wave_count;
+};
+
+struct LtProfResult_t
+{
+    LtGemmAlgoAttr_t attr;
+    ProfResult_t info;
+};
+
 GemmDtype_t GetGemmDtype(int id);
 int Dtype2Size(cudaDataType_t dtype);
 std::string Operation2Str(cublasOperation_t op);
@@ -46,3 +62,5 @@ std::string Algo2Str(cublasGemmAlgo_t algo);
 void* AllocAlphaScale(cudaDataType_t dtype);
 void PrintResult(const char dev_name[], const GemmParam_t& param,
     const std::vector<ProfResult_t>& results);
+void PrintLtResult(const char dev_name[], const GemmParam_t& param,
+    const std::vector<LtProfResult_t>& results);

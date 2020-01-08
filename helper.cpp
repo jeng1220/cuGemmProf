@@ -237,3 +237,51 @@ void PrintResult(const char dev_name[], const GemmParam_t& param,
             (result.time == FLT_MAX ? NAN : gflops) << std::endl;
     }
 }
+
+bool SortLtResult (const LtProfResult_t& x, const LtProfResult_t& y) { 
+    return (x.info.time < y.info.time); 
+}
+
+void PrintLtResult(const char dev_name[], const GemmParam_t& param,
+    const std::vector<LtProfResult_t>& results) {
+    std::cout << "device, op(A), op(B), "
+        "m, n, k, ComputeType, Atype, Btype, Ctype, "
+        "Dp4aRestrictions(lda.ldb), TensorCoreRestrictions(m.k.A.B.C.lda.ldb.ldc), "
+        "algo, time(ms), GFLOPS, "
+        "LtAlgoId, TileId, Red.Sch, Swizzle, CustomId, WorkSpaceSize, WaveCount" << std::endl;
+
+    std::string all_info;
+    all_info = std::string(dev_name) + ", "
+        + Operation2Str(param.transa) + ", "
+        + Operation2Str(param.transb) + ", "
+        + std::to_string(param.m) + ", "
+        + std::to_string(param.n) + ", "
+        + std::to_string(param.k) + ", "
+        + Dtype2Str(param.dtype.computeType) + ", "
+        + Dtype2Str(param.dtype.Atype) + ", "
+        + Dtype2Str(param.dtype.Btype) + ", "
+        + Dtype2Str(param.dtype.Ctype) + ", ";
+
+    all_info += Dp4aRestrictions(param);
+    all_info += TensorCoreRestrictions(param);
+
+    float workload = (2.f * param.m * param.n * param.k) * 1e-9;
+
+    std::vector<LtProfResult_t> order = results;
+    std::sort(order.begin(), order.end(), SortLtResult);
+
+    for (auto result : order) {
+        float gflops = workload / (result.info.time * 1e-3);
+
+        std::cout << all_info << result.info.algo << ", " << 
+            (result.info.time == FLT_MAX ? NAN : result.info.time) << ", " <<
+            (result.info.time == FLT_MAX ? NAN : gflops) << ", " <<
+            std::to_string(result.attr.algo_id) << ", " <<
+            std::to_string(result.attr.tile_id) << ", " <<
+            std::to_string(result.attr.reduction_scheme) << ", " <<
+            std::to_string(result.attr.swizzle) << ", " <<
+            std::to_string(result.attr.custom_option) << ", " <<
+            std::to_string(result.attr.workspace_size) << ", " <<
+            std::to_string(result.attr.wave_count) << std::endl;
+    }
+}
