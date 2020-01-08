@@ -276,7 +276,14 @@ ProfResult_t LtMatrixMul(cublasLtHandle_t handle, LtGemmParam_t& lt_param,
         RUNTIME_API_CALL(cudaEventRecord(end));
     }
 
-    RUNTIME_API_CALL(cudaEventSynchronize(end));
+    auto ret = cudaEventSynchronize(end);
+    if (ret != cudaSuccess) {
+        fault = true;
+        if (debug) {
+            std::cerr << "cublasLtMatmul, cudaEventSynchronize, " <<
+            cudaGetErrorString(ret) << std::endl;
+        }
+    }
 
     if (imma_param.trans_desc && !fault) {
         TransformLtMatrix(handle, imma_param.trans_desc, imma_param.trans_C, lt_param.C);
@@ -498,7 +505,10 @@ std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param, bool all_alg
 
     std::vector<cublasLtMatmulHeuristicResult_t> heuristic_results;
     std::string algo_name{"CUBLASLT_DEFAULT_ALG"};
+    // clean-up
     lt_param.algo = nullptr;
+    lt_param.workspace_size = 0;
+    lt_param.workspace = nullptr;
 
     if (use_imma) {
         algo_name = "CUBLASLT_DEFAULT_IMMA_ALG";
