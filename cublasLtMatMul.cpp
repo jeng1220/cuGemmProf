@@ -147,7 +147,7 @@ GemmDtype_t GemmDtype(LtGemmParam_t lt_param) {
     return gemm_dtype;
 }
 
-LtGemmParam_t CreateLtParameter(const GemmParam_t& param) {
+LtGemmParam_t CreateLtGemmParameter(const GemmParam_t& param) {
     LtGemmParam_t lt_param;
 
     CUBLAS_API_CALL(cublasLtMatmulDescCreate(&lt_param.op_desc, param.dtype.computeType));
@@ -176,7 +176,7 @@ LtGemmParam_t CreateLtParameter(const GemmParam_t& param) {
     return lt_param;
 }
 
-void DestroyLtParameter(LtGemmParam_t lt_param) {
+void DestroyLtGemmParameter(LtGemmParam_t lt_param) {
     CUBLAS_API_CALL(cublasLtMatmulDescDestroy(lt_param.op_desc));
     DestroyLtMatrix(lt_param.A);
     DestroyLtMatrix(lt_param.B);
@@ -191,7 +191,7 @@ struct LtImmaParam_t {
     cublasLtMatrix_t trans_C;
 };
 
-LtImmaParam_t CreateImmaParameter(cublasLtHandle_t handle,
+LtImmaParam_t CreateLtImmaParameter(cublasLtHandle_t handle,
     const GemmParam_t& param, const LtGemmParam_t& lt_param) {
 
     LtImmaParam_t imma_param;
@@ -209,7 +209,7 @@ LtImmaParam_t CreateImmaParameter(cublasLtHandle_t handle,
     return imma_param;
 }
 
-void DestroyImmaParameter(LtImmaParam_t imma_param) {
+void DestroyLtImmaParameter(LtImmaParam_t imma_param) {
     DestroyLtMatrix(imma_param.trans_A);
     DestroyLtMatrix(imma_param.trans_B);
     DestroyLtMatrix(imma_param.trans_C);
@@ -467,7 +467,7 @@ std::vector<Result_t> ProfileLtGemm(const GemmParam_t& param, bool all_algo, int
     cublasLtHandle_t handle;
     CUBLAS_API_CALL(cublasLtCreate(&handle));
 
-    LtGemmParam_t lt_param = CreateLtParameter(param);
+    LtGemmParam_t lt_param = CreateLtGemmParameter(param);
 
     bool use_imma = param.dtype.computeType == CUDA_R_32I &&
                     param.transa == CUBLAS_OP_N &&
@@ -477,7 +477,7 @@ std::vector<Result_t> ProfileLtGemm(const GemmParam_t& param, bool all_algo, int
     memset(&imma_param, 0, sizeof(LtImmaParam_t));
 
     if (use_imma) {
-        imma_param = CreateImmaParameter(handle, param, lt_param);
+        imma_param = CreateLtImmaParameter(handle, param, lt_param);
     }
 
     std::vector<Result_t> results;
@@ -504,9 +504,9 @@ std::vector<Result_t> ProfileLtGemm(const GemmParam_t& param, bool all_algo, int
     }
 
     if (use_imma) {
-        DestroyImmaParameter(imma_param);
+        DestroyLtImmaParameter(imma_param);
     }
-    DestroyLtParameter(lt_param);
+    DestroyLtGemmParameter(lt_param);
     CUBLAS_API_CALL(cublasLtDestroy(handle));
 
     return results;
