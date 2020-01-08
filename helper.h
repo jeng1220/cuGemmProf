@@ -41,6 +41,7 @@ struct ProfResult_t {
 struct LtGemmAlgoAttr_t {
     int algo_id;
     int tile_id;
+    int splite_k;
     int reduction_scheme;
     int swizzle;
     int custom_option;

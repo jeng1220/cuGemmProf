@@ -432,7 +432,7 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
                                 auto result = LtMatrixMul(handle,
                                     lt_param, imma_param, loop, debug, "CUBLASLT_ALL_ALG");
 
-                                LtGemmAlgoAttr_t attr{idx, tile_id, reduction, s, c,
+                                LtGemmAlgoAttr_t attr{idx, tile_id, splite_k, reduction, s, c,
                                     heur_result.workspaceSize, heur_result.wavesCount};
 
                                 results.push_back(LtProfResult_t{attr, result});

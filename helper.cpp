@@ -291,7 +291,7 @@ void PrintLtResult(const char dev_name[], const GemmParam_t& param,
         "m, n, k, ComputeType, Atype, Btype, Ctype, "
         "Dp4aRestrictions(lda.ldb), TensorCoreRestrictions(m.k.A.B.C.lda.ldb.ldc), "
         "algo, time(ms), GFLOPS, "
-        "LtAlgoId, TileId, Red.Sch, Swizzle, CustomId, WorkSpaceSize, WaveCount" << std::endl;
+        "LtAlgoId, TileId, SpliteK, Red.Sch, Swizzle, CustomId, WorkSpaceSize, WaveCount" << std::endl;
 
     std::string all_info;
     all_info = std::string(dev_name) + ", "
@@ -323,6 +323,7 @@ void PrintLtResult(const char dev_name[], const GemmParam_t& param,
         if (result.attr.wave_count != 0.f) {
             std::cout << std::to_string(result.attr.algo_id) << ", " <<
                 TileIdToString(result.attr.tile_id) << ", " <<
+                std::to_string(result.attr.splite_k) << ", " << 
                 ReductionSchemeToString(result.attr.reduction_scheme) << ", " <<
                 std::to_string(result.attr.swizzle) << ", " <<
                 std::to_string(result.attr.custom_option) << ", " <<
