@@ -177,7 +177,7 @@ int main (int argc, const char* argv[]) {
             PrintResult(prop.name, param, results);
         }
 
-        results = ProfileGemmLt(param, run_all_algo, loop, debug);
+        results = ProfileLtGemm(param, run_all_algo, loop, debug);
         PrintResult(prop.name, param, results);
 
         RUNTIME_API_CALL(cudaFree(dev_A));
