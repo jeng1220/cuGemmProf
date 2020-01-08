@@ -276,14 +276,7 @@ ProfResult_t LtMatrixMul(cublasLtHandle_t handle, LtGemmParam_t& lt_param,
         CUDA_CHECK(cudaEventRecord(end));
     }
 
-    auto ret = cudaEventSynchronize(end);
-    if (ret != cudaSuccess) {
-        fault = true;
-        if (debug) {
-            std::cerr << "cublasLtMatmul, cudaEventSynchronize, " <<
-            cudaGetErrorString(ret) << std::endl;
-        }
-    }
+    CUDA_CHECK(cudaEventSynchronize(end));
 
     if (imma_param.trans_desc && !fault) {
         TransformLtMatrix(handle, imma_param.trans_desc, imma_param.trans_C, lt_param.C);
@@ -341,7 +334,7 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
         int reduction_scheme_mask;
         int swizzling_support;
         int custom_option_max;
-        int epilogue_mask;
+        //int epilogue_mask;
         std::vector<int> tile_ids;
 
         CUBLAS_CHECK(cublasLtMatmulAlgoCapGetAttribute(&algo,
@@ -352,8 +345,8 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
             CUBLASLT_ALGO_CAP_CTA_SWIZZLING_SUPPORT, &swizzling_support, sizeof(int), nullptr));
         CUBLAS_CHECK(cublasLtMatmulAlgoCapGetAttribute(&algo,
             CUBLASLT_ALGO_CAP_CUSTOM_OPTION_MAX, &custom_option_max, sizeof(int), nullptr));
-        CUBLAS_CHECK(cublasLtMatmulAlgoCapGetAttribute(&algo,
-            CUBLASLT_ALGO_CAP_EPILOGUE_MASK, &epilogue_mask, sizeof(int), nullptr));
+        //CUBLAS_CHECK(cublasLtMatmulAlgoCapGetAttribute(&algo,
+        //    CUBLASLT_ALGO_CAP_EPILOGUE_MASK, &epilogue_mask, sizeof(int), nullptr));
 
         size_t size_in_bytes = 0;
         CUBLAS_CHECK(cublasLtMatmulAlgoCapGetAttribute(&algo, CUBLASLT_ALGO_CAP_TILE_IDS,
@@ -481,6 +474,26 @@ std::vector<cublasLtMatmulHeuristicResult_t> HeuristicLtGemmAlgo(cublasLtHandle_
     return results;
 }
 
+LtGemmAlgoAttr_t LtGemmAlgoAttr(const cublasLtMatmulAlgo_t* algo,
+    size_t workspace_size, int wave_count) {
+    LtGemmAlgoAttr_t attr;
+    CUBLAS_CHECK(cublasLtMatmulAlgoConfigGetAttribute(
+	    algo, CUBLASLT_ALGO_CONFIG_ID, &attr.algo_id, sizeof(int), nullptr));
+    CUBLAS_CHECK(cublasLtMatmulAlgoConfigGetAttribute(
+	    algo, CUBLASLT_ALGO_CONFIG_TILE_ID, &attr.tile_id, sizeof(int), nullptr));
+    CUBLAS_CHECK(cublasLtMatmulAlgoConfigGetAttribute(
+	    algo, CUBLASLT_ALGO_CONFIG_SPLITK_NUM, &attr.splite_k, sizeof(int), nullptr));
+    CUBLAS_CHECK(cublasLtMatmulAlgoConfigGetAttribute(
+	    algo, CUBLASLT_ALGO_CONFIG_REDUCTION_SCHEME, &attr.reduction_scheme, sizeof(int), nullptr));
+    CUBLAS_CHECK(cublasLtMatmulAlgoConfigGetAttribute(
+	    algo, CUBLASLT_ALGO_CONFIG_CTA_SWIZZLING, &attr.swizzle, sizeof(int), nullptr));
+    CUBLAS_CHECK(cublasLtMatmulAlgoConfigGetAttribute(
+	    algo, CUBLASLT_ALGO_CONFIG_CUSTOM_OPTION, &attr.custom_option, sizeof(int), nullptr));
+    attr.workspace_size = workspace_size;
+    attr.wave_count = wave_count;
+    return attr;
+}
+
 std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param, bool all_algo, int loop, bool debug) {
     cublasLtHandle_t handle;
     CUBLAS_CHECK(cublasLtCreate(&handle));
@@ -505,10 +518,12 @@ std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param, bool all_alg
 
     std::vector<cublasLtMatmulHeuristicResult_t> heuristic_results;
     std::string algo_name{"CUBLASLT_DEFAULT_ALG"};
-    // clean-up
+    // clean up
     lt_param.algo = nullptr;
     lt_param.workspace_size = 0;
     lt_param.workspace = nullptr;
+    LtGemmAlgoAttr_t attr;
+    memset(&attr, 0, sizeof(LtGemmAlgoAttr_t));
 
     if (use_imma) {
         algo_name = "CUBLASLT_DEFAULT_IMMA_ALG";
@@ -518,15 +533,14 @@ std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param, bool all_alg
         if (heuristic_results.size() > 0) {
             algo_name = "CUBLASLT_1ST_HEURISTIC_ALG";
             lt_param.algo = &heuristic_results[0].algo;
+            attr = LtGemmAlgoAttr(&heuristic_results[0].algo,
+                heuristic_results[0].workspaceSize, heuristic_results[0].wavesCount);
         }
     }
 
     auto result = LtMatrixMul(handle, lt_param, imma_param,
         loop, debug, algo_name);
-    LtGemmAlgoAttr_t attr;
-    memset(&attr, 0, sizeof(LtGemmAlgoAttr_t));
     results.push_back(LtProfResult_t{attr, result});
-
 
     if (use_imma) {
         DestroyLtImmaParameter(imma_param);
