@@ -24,5 +24,7 @@ do {                                                                            
     }                                                                                 \
 } while (0)
 
-#define CUBLASLT_IMMA_ALG -5000
-#define CUBLASLT_HEURISTIC_ALG -2
+#define __CUBLASLT_DEFAULT_ALG__       -2
+#define __CUBLASLT_DEFAULT_IMMA_ALG__  -3
+#define __CUBLASLT_1ST_HEURISTIC_ALG__ -4
+#define __CUBLASLT_ALL_ALG__           -5

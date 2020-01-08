@@ -34,7 +34,7 @@ struct GemmParam_t {
 };
 
 struct ProfResult_t {
-    std::string algo;
+    cublasGemmAlgo_t algo;
     float time;
 };
 
@@ -57,10 +57,8 @@ struct LtProfResult_t
 
 GemmDtype_t GetGemmDtype(int id);
 int DtypeToSize(cudaDataType_t dtype);
-std::string OperationToString(cublasOperation_t op);
-std::string Dtype2String(cudaDataType_t dtype);
-std::string AlgoToString(cublasGemmAlgo_t algo);
 void* AllocAlphaScale(cudaDataType_t dtype);
+std::string AlgoToString(cublasGemmAlgo_t algo);
 void PrintResult(const char dev_name[], const GemmParam_t& param,
     const std::vector<ProfResult_t>& results);
 void PrintLtResult(const char dev_name[], const GemmParam_t& param,

@@ -113,7 +113,7 @@ std::vector<ProfResult_t> ProfileGemm(const GemmParam_t& param,
         CUDA_CHECK(cudaMemset(param.C, 0, param.m * param.n * DtypeToSize(param.dtype.Ctype)));
 
         time = fault ? FLT_MAX : (time / loop);
-        results.push_back(ProfResult_t{AlgoToString(algo), time});
+        results.push_back(ProfResult_t{algo, time});
     }
 
     CUDA_CHECK(cudaEventDestroy(start));

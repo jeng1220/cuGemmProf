@@ -76,11 +76,15 @@ std::string DtypeToString(cudaDataType_t dtype) {
 }
 
 std::string AlgoToString(cublasGemmAlgo_t algo) {
-    const cublasGemmAlgo_t CUBLASLT_IMMA_ALG_ = static_cast<cublasGemmAlgo_t>(CUBLASLT_IMMA_ALG);
-    const cublasGemmAlgo_t CUBLASLT_HEURISTIC_ALG_ = static_cast<cublasGemmAlgo_t>(CUBLASLT_HEURISTIC_ALG);
+    const cublasGemmAlgo_t CUBLASLT_DEFAULT_ALG = static_cast<cublasGemmAlgo_t>(__CUBLASLT_DEFAULT_ALG__);
+    const cublasGemmAlgo_t CUBLASLT_DEFAULT_IMMA_ALG = static_cast<cublasGemmAlgo_t>(__CUBLASLT_DEFAULT_IMMA_ALG__);
+    const cublasGemmAlgo_t CUBLASLT_1ST_HEURISTIC_ALG = static_cast<cublasGemmAlgo_t>(__CUBLASLT_1ST_HEURISTIC_ALG__);
+    const cublasGemmAlgo_t CUBLASLT_ALL_ALG = static_cast<cublasGemmAlgo_t>(__CUBLASLT_ALL_ALG__);
     const static std::map<cublasGemmAlgo_t, std::string> kAlgo2Str{
-        ADD_KEY_AND_STR(CUBLASLT_IMMA_ALG_),
-        ADD_KEY_AND_STR(CUBLASLT_HEURISTIC_ALG_),
+        ADD_KEY_AND_STR(CUBLASLT_DEFAULT_ALG),
+        ADD_KEY_AND_STR(CUBLASLT_DEFAULT_IMMA_ALG),
+        ADD_KEY_AND_STR(CUBLASLT_1ST_HEURISTIC_ALG),
+        ADD_KEY_AND_STR(CUBLASLT_ALL_ALG),
         ADD_KEY_AND_STR(CUBLAS_GEMM_DEFAULT),
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO0),
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO1),
@@ -316,7 +320,8 @@ void PrintLtResult(const char dev_name[], const GemmParam_t& param,
     for (auto result : order) {
         float gflops = workload / (result.info.time * 1e-3);
 
-        std::cout << all_info << result.info.algo << ", " << 
+        std::cout << all_info << 
+            AlgoToString(result.info.algo) << ", " << 
             (result.info.time == FLT_MAX ? NAN : result.info.time) << ", " <<
             (result.info.time == FLT_MAX ? NAN : gflops) << ", ";
 

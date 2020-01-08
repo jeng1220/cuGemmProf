@@ -222,8 +222,8 @@ void PrintMatrix(LtMatrix_t mat) {
 }
 
 ProfResult_t LtMatrixMul(cublasLtHandle_t handle, LtGemmParam_t& lt_param,
-    LtImmaParam_t& imma_param, int loop, bool debug,
-    const std::string& algo_name)
+    const LtImmaParam_t& imma_param, int loop, bool debug,
+    cublasGemmAlgo_t algo_name)
 {
     cudaEvent_t start;
     cudaEvent_t end;
@@ -305,7 +305,7 @@ ProfResult_t LtMatrixMul(cublasLtHandle_t handle, LtGemmParam_t& lt_param,
 }
 
 std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
-    LtGemmParam_t& lt_param, LtImmaParam_t& imma_param, int loop, bool debug) {
+    LtGemmParam_t& lt_param, const LtImmaParam_t& imma_param, int loop, bool debug) {
 
     const int max_algos = 40;
     std::vector<int> algo_ids(max_algos);
@@ -423,7 +423,8 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
                                 lt_param.algo = &algo;
 
                                 auto result = LtMatrixMul(handle,
-                                    lt_param, imma_param, loop, debug, "CUBLASLT_ALL_ALG");
+                                    lt_param, imma_param, loop, debug, 
+                                    static_cast<cublasGemmAlgo_t>(__CUBLASLT_ALL_ALG__));
 
                                 LtGemmAlgoAttr_t attr{idx, tile_id, splite_k, reduction, s, c,
                                     heur_result.workspaceSize, heur_result.wavesCount};
@@ -517,7 +518,7 @@ std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param, bool all_alg
     }
 
     std::vector<cublasLtMatmulHeuristicResult_t> heuristic_results;
-    std::string algo_name{"CUBLASLT_DEFAULT_ALG"};
+    auto algo_name = static_cast<cublasGemmAlgo_t>(__CUBLASLT_DEFAULT_ALG__);
     // clean up
     lt_param.algo = nullptr;
     lt_param.workspace_size = 0;
@@ -526,12 +527,12 @@ std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param, bool all_alg
     memset(&attr, 0, sizeof(LtGemmAlgoAttr_t));
 
     if (use_imma) {
-        algo_name = "CUBLASLT_DEFAULT_IMMA_ALG";
+        algo_name = static_cast<cublasGemmAlgo_t>(__CUBLASLT_DEFAULT_IMMA_ALG__);
     }
     else {
         heuristic_results = HeuristicLtGemmAlgo(handle, lt_param, 1, debug);
         if (heuristic_results.size() > 0) {
-            algo_name = "CUBLASLT_1ST_HEURISTIC_ALG";
+            algo_name = static_cast<cublasGemmAlgo_t>(__CUBLASLT_1ST_HEURISTIC_ALG__);
             lt_param.algo = &heuristic_results[0].algo;
             attr = LtGemmAlgoAttr(&heuristic_results[0].algo,
                 heuristic_results[0].workspaceSize, heuristic_results[0].wavesCount);
