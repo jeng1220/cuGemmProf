@@ -11,21 +11,21 @@ int RoundOff(int v, int d) {
    return (v + d - 1) / d * d;
 }
 
-struct cublasLtMatrix_t {
+struct LtMatrix_t {
     void* ptr;
     cublasLtMatrixLayout_t desc;
     bool own;
 };
 
-struct cublasLtMatrixAttr_t {
+struct LtMatrixAttr_t {
     long w;
     long h;
     long ld;
     cudaDataType_t dtype;
 };
 
-cublasLtMatrixAttr_t LtMatrixAttr(cublasLtMatrix_t mat) {
-    cublasLtMatrixAttr_t attr;
+LtMatrixAttr_t LtMatrixAttr(const LtMatrix_t& mat) {
+    LtMatrixAttr_t attr;
     
     CUBLAS_API_CALL(cublasLtMatrixLayoutGetAttribute(
 	    mat.desc, CUBLASLT_MATRIX_LAYOUT_ROWS,
@@ -48,24 +48,24 @@ cublasLtMatrixAttr_t LtMatrixAttr(cublasLtMatrix_t mat) {
     return attr;
 }
 
-cublasDataType_t LtMatrixDtype(cublasLtMatrix_t mat) {
+cublasDataType_t LtMatrixDtype(const LtMatrix_t& mat) {
     return LtMatrixAttr(mat).dtype;
 }
 
-size_t LtMatrixCount(cublasLtMatrix_t mat) {
+size_t LtMatrixCount(const LtMatrix_t& mat) {
     auto attr = LtMatrixAttr(mat);
     return attr.ld * attr.h;
 }
 
-size_t LtMatrixSizeInBytes(cublasLtMatrix_t mat) {
+size_t LtMatrixSizeInBytes(const LtMatrix_t& mat) {
     auto attr = LtMatrixAttr(mat);
     return attr.ld * attr.h * Dtype2Size(attr.dtype);
 }
 
-cublasLtMatrix_t CreateLtMatrix(const void* ptr, int w, int h, int ld,
+LtMatrix_t CreateLtMatrix(const void* ptr, int w, int h, int ld,
     cublasDataType_t dtype) {
 
-    cublasLtMatrix_t mat;
+    LtMatrix_t mat;
     mat.own = false;
     mat.ptr = const_cast<void*>(ptr);
     CUBLAS_API_CALL(cublasLtMatrixLayoutCreate(
@@ -74,10 +74,10 @@ cublasLtMatrix_t CreateLtMatrix(const void* ptr, int w, int h, int ld,
     return mat;
 }
 
-cublasLtMatrix_t CreateTransformLtMatrix(int w, int h,
+LtMatrix_t CreateTransformLtMatrix(int w, int h,
     cublasDataType_t dtype, cublasLtOrder_t order) {
 
-    cublasLtMatrix_t mat;
+    LtMatrix_t mat;
     mat.own = true;
 
     if (order == CUBLASLT_ORDER_COL32) {
@@ -102,14 +102,14 @@ cublasLtMatrix_t CreateTransformLtMatrix(int w, int h,
     return mat;
 }
 
-void DestroyLtMatrix(cublasLtMatrix_t mat) {
+void DestroyLtMatrix(LtMatrix_t& mat) {
     if (mat.own) RUNTIME_API_CALL(cudaFree(mat.ptr));
     CUBLAS_API_CALL(cublasLtMatrixLayoutDestroy(mat.desc));
 }
 
 void TransformLtMatrix(cublasLtHandle_t handle,
     cublasLtMatrixTransformDesc_t trans_desc,
-    cublasLtMatrix_t src, cublasLtMatrix_t dst) {
+    const LtMatrix_t& src, LtMatrix_t& dst) {
 
     float alpha = 1.0f;
     float beta = 0.0f;
@@ -123,16 +123,16 @@ struct LtGemmParam_t {
     cublasLtMatmulDesc_t op_desc;
     void* alpha;
     void* beta;
-    cublasLtMatrix_t A;
-    cublasLtMatrix_t B;
-    cublasLtMatrix_t C;
-    cublasLtMatrix_t D;
+    LtMatrix_t A;
+    LtMatrix_t B;
+    LtMatrix_t C;
+    LtMatrix_t D;
     cublasLtMatmulAlgo_t* algo;
     void* workspace;
     size_t workspace_size;
 };
 
-GemmDtype_t GemmDtype(LtGemmParam_t lt_param) {
+GemmDtype_t GemmDtype(const LtGemmParam_t& lt_param) {
     GemmDtype_t gemm_dtype;
     gemm_dtype.Atype = LtMatrixAttr(lt_param.A).dtype;
     gemm_dtype.Btype = LtMatrixAttr(lt_param.B).dtype;
@@ -176,7 +176,7 @@ LtGemmParam_t CreateLtGemmParameter(const GemmParam_t& param) {
     return lt_param;
 }
 
-void DestroyLtGemmParameter(LtGemmParam_t lt_param) {
+void DestroyLtGemmParameter(LtGemmParam_t& lt_param) {
     CUBLAS_API_CALL(cublasLtMatmulDescDestroy(lt_param.op_desc));
     DestroyLtMatrix(lt_param.A);
     DestroyLtMatrix(lt_param.B);
@@ -186,9 +186,9 @@ void DestroyLtGemmParameter(LtGemmParam_t lt_param) {
 
 struct LtImmaParam_t {
     cublasLtMatrixTransformDesc_t trans_desc;
-    cublasLtMatrix_t trans_A;
-    cublasLtMatrix_t trans_B;
-    cublasLtMatrix_t trans_C;
+    LtMatrix_t trans_A;
+    LtMatrix_t trans_B;
+    LtMatrix_t trans_C;
 };
 
 LtImmaParam_t CreateLtImmaParameter(cublasLtHandle_t handle,
@@ -209,14 +209,14 @@ LtImmaParam_t CreateLtImmaParameter(cublasLtHandle_t handle,
     return imma_param;
 }
 
-void DestroyLtImmaParameter(LtImmaParam_t imma_param) {
+void DestroyLtImmaParameter(LtImmaParam_t& imma_param) {
     DestroyLtMatrix(imma_param.trans_A);
     DestroyLtMatrix(imma_param.trans_B);
     DestroyLtMatrix(imma_param.trans_C);
     CUBLAS_API_CALL(cublasLtMatrixTransformDescDestroy(imma_param.trans_desc));
 }
 
-void PrintMatrix(cublasLtMatrix_t mat) {
+void PrintMatrix(LtMatrix_t mat) {
     auto attr = LtMatrixAttr(mat);
     PrintMatrix(mat.ptr, attr.w, attr.h, attr.ld, attr.dtype);
 }
