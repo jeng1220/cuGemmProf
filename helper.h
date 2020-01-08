@@ -6,7 +6,7 @@
 
 std::string cublasGetErrorString(cublasStatus_t err);
 
-struct Dtypes_t {
+struct GemmDtype_t {
     cudaDataType_t computeType;
     cudaDataType_t Atype;
     cudaDataType_t Btype;
@@ -27,7 +27,7 @@ struct Param_t {
     void *beta;
     void *C;
     int ldc;
-    Dtypes_t dtype;
+    GemmDtype_t dtype;
     void *D;
     size_t workspace_size;
     void* workspace;
@@ -38,7 +38,7 @@ struct Result_t {
     float time;
 };
 
-Dtypes_t GetGemmDtype(int id);
+GemmDtype_t GetGemmDtype(int id);
 int Dtype2Size(cudaDataType_t dtype);
 std::string Operation2Str(cublasOperation_t op);
 std::string Dtype2Str(cudaDataType_t dtype);

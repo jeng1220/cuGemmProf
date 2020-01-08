@@ -132,8 +132,8 @@ struct LtGemmParam_t {
     size_t workspace_size;
 };
 
-Dtypes_t GemmDtype(LtGemmParam_t lt_param) {
-    Dtypes_t gemm_dtype;
+GemmDtype_t GemmDtype(LtGemmParam_t lt_param) {
+    GemmDtype_t gemm_dtype;
     gemm_dtype.Atype = LtMatrixAttr(lt_param.A).dtype;
     gemm_dtype.Btype = LtMatrixAttr(lt_param.B).dtype;
     gemm_dtype.Ctype = LtMatrixAttr(lt_param.C).dtype;
