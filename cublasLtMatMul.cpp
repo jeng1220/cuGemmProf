@@ -507,8 +507,8 @@ std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param, bool all_alg
     std::string algo_name{"CUBLASLT_DEFAULT_ALG"};
     // clean-up
     lt_param.algo = nullptr;
-    //lt_param.workspace_size = 0;
-    //lt_param.workspace = nullptr;
+    lt_param.workspace_size = 0;
+    lt_param.workspace = nullptr;
 
     if (use_imma) {
         algo_name = "CUBLASLT_DEFAULT_IMMA_ALG";
