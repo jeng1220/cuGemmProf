@@ -27,20 +27,20 @@ struct LtMatrixAttr_t {
 LtMatrixAttr_t LtMatrixAttr(const LtMatrix_t& mat) {
     LtMatrixAttr_t attr;
     
-    CUBLAS_API_CALL(cublasLtMatrixLayoutGetAttribute(
+    CUBLAS_CHECK(cublasLtMatrixLayoutGetAttribute(
 	    mat.desc, CUBLASLT_MATRIX_LAYOUT_ROWS,
         &attr.w, sizeof(long), nullptr));
 
-    CUBLAS_API_CALL(cublasLtMatrixLayoutGetAttribute(
+    CUBLAS_CHECK(cublasLtMatrixLayoutGetAttribute(
 	    mat.desc, CUBLASLT_MATRIX_LAYOUT_COLS,
         &attr.h, sizeof(long), nullptr));
 
-    CUBLAS_API_CALL(cublasLtMatrixLayoutGetAttribute(
+    CUBLAS_CHECK(cublasLtMatrixLayoutGetAttribute(
 	    mat.desc, CUBLASLT_MATRIX_LAYOUT_LD,
         &attr.ld, sizeof(long), nullptr));
 
     int dtype;
-    CUBLAS_API_CALL(cublasLtMatrixLayoutGetAttribute(
+    CUBLAS_CHECK(cublasLtMatrixLayoutGetAttribute(
 	    mat.desc, CUBLASLT_MATRIX_LAYOUT_TYPE,
         &dtype, sizeof(int), nullptr));
     attr.dtype = static_cast<cublasDataType_t>(dtype);
@@ -59,7 +59,7 @@ size_t LtMatrixCount(const LtMatrix_t& mat) {
 
 size_t LtMatrixSizeInBytes(const LtMatrix_t& mat) {
     auto attr = LtMatrixAttr(mat);
-    return attr.ld * attr.h * Dtype2Size(attr.dtype);
+    return attr.ld * attr.h * DtypeToSize(attr.dtype);
 }
 
 LtMatrix_t CreateLtMatrix(const void* ptr, int w, int h, int ld,
@@ -68,7 +68,7 @@ LtMatrix_t CreateLtMatrix(const void* ptr, int w, int h, int ld,
     LtMatrix_t mat;
     mat.own = false;
     mat.ptr = const_cast<void*>(ptr);
-    CUBLAS_API_CALL(cublasLtMatrixLayoutCreate(
+    CUBLAS_CHECK(cublasLtMatrixLayoutCreate(
        &mat.desc, dtype, w, h, ld));
     
     return mat;
@@ -82,29 +82,29 @@ LtMatrix_t CreateTransformLtMatrix(int w, int h,
 
     if (order == CUBLASLT_ORDER_COL32) {
         int ld = 32 * w;
-        RUNTIME_API_CALL(cudaMalloc(&mat.ptr,
-            Dtype2Size(dtype) * RoundOff(h, 32) / 32 * ld));
-        CUBLAS_API_CALL(cublasLtMatrixLayoutCreate(&mat.desc, dtype,
+        CUDA_CHECK(cudaMalloc(&mat.ptr,
+            DtypeToSize(dtype) * RoundOff(h, 32) / 32 * ld));
+        CUBLAS_CHECK(cublasLtMatrixLayoutCreate(&mat.desc, dtype,
                 w, h, ld));
     }
     else if (order == CUBLASLT_ORDER_COL4_4R2_8C) {
         int ld = 32 * RoundOff(h, 8);
-        RUNTIME_API_CALL(cudaMalloc(&mat.ptr,
-            Dtype2Size(dtype) * RoundOff(w, 32) / 32 * ld));
-        CUBLAS_API_CALL(cublasLtMatrixLayoutCreate(&mat.desc, dtype,
+        CUDA_CHECK(cudaMalloc(&mat.ptr,
+            DtypeToSize(dtype) * RoundOff(w, 32) / 32 * ld));
+        CUBLAS_CHECK(cublasLtMatrixLayoutCreate(&mat.desc, dtype,
                 h, w, ld));
     }
     else {
         assert(-1);
     }
-    CUBLAS_API_CALL(cublasLtMatrixLayoutSetAttribute(mat.desc,
+    CUBLAS_CHECK(cublasLtMatrixLayoutSetAttribute(mat.desc,
         CUBLASLT_MATRIX_LAYOUT_ORDER, &order, sizeof(cublasLtOrder_t)));
     return mat;
 }
 
 void DestroyLtMatrix(LtMatrix_t& mat) {
-    if (mat.own) RUNTIME_API_CALL(cudaFree(mat.ptr));
-    CUBLAS_API_CALL(cublasLtMatrixLayoutDestroy(mat.desc));
+    if (mat.own) CUDA_CHECK(cudaFree(mat.ptr));
+    CUBLAS_CHECK(cublasLtMatrixLayoutDestroy(mat.desc));
 }
 
 void TransformLtMatrix(cublasLtHandle_t handle,
@@ -113,7 +113,7 @@ void TransformLtMatrix(cublasLtHandle_t handle,
 
     float alpha = 1.0f;
     float beta = 0.0f;
-    CUBLAS_API_CALL(cublasLtMatrixTransform(handle, trans_desc,
+    CUBLAS_CHECK(cublasLtMatrixTransform(handle, trans_desc,
         &alpha, src.ptr, src.desc,
         &beta, nullptr, nullptr, 
         dst.ptr, dst.desc, 0));
@@ -139,7 +139,7 @@ GemmDtype_t GemmDtype(const LtGemmParam_t& lt_param) {
     gemm_dtype.Ctype = LtMatrixAttr(lt_param.C).dtype;
 
     int dtype;
-    CUBLAS_API_CALL(cublasLtMatmulDescGetAttribute(
+    CUBLAS_CHECK(cublasLtMatmulDescGetAttribute(
 	    lt_param.op_desc, CUBLASLT_MATMUL_DESC_COMPUTE_TYPE,
 	    &dtype, sizeof(int), nullptr));
 
@@ -150,10 +150,10 @@ GemmDtype_t GemmDtype(const LtGemmParam_t& lt_param) {
 LtGemmParam_t CreateLtGemmParameter(const GemmParam_t& param) {
     LtGemmParam_t lt_param;
 
-    CUBLAS_API_CALL(cublasLtMatmulDescCreate(&lt_param.op_desc, param.dtype.computeType));
-    CUBLAS_API_CALL(cublasLtMatmulDescSetAttribute(lt_param.op_desc,
+    CUBLAS_CHECK(cublasLtMatmulDescCreate(&lt_param.op_desc, param.dtype.computeType));
+    CUBLAS_CHECK(cublasLtMatmulDescSetAttribute(lt_param.op_desc,
         CUBLASLT_MATMUL_DESC_TRANSA, &param.transa, sizeof(cublasOperation_t)));
-    CUBLAS_API_CALL(cublasLtMatmulDescSetAttribute(lt_param.op_desc,
+    CUBLAS_CHECK(cublasLtMatmulDescSetAttribute(lt_param.op_desc,
         CUBLASLT_MATMUL_DESC_TRANSB, &param.transb, sizeof(cublasOperation_t)));
 
     lt_param.alpha = param.alpha;
@@ -177,7 +177,7 @@ LtGemmParam_t CreateLtGemmParameter(const GemmParam_t& param) {
 }
 
 void DestroyLtGemmParameter(LtGemmParam_t& lt_param) {
-    CUBLAS_API_CALL(cublasLtMatmulDescDestroy(lt_param.op_desc));
+    CUBLAS_CHECK(cublasLtMatmulDescDestroy(lt_param.op_desc));
     DestroyLtMatrix(lt_param.A);
     DestroyLtMatrix(lt_param.B);
     DestroyLtMatrix(lt_param.C);
@@ -199,13 +199,13 @@ LtImmaParam_t CreateLtImmaParameter(cublasLtHandle_t handle,
     imma_param.trans_B = CreateTransformLtMatrix(param.k, param.n, param.dtype.Btype, CUBLASLT_ORDER_COL4_4R2_8C);
     imma_param.trans_C = CreateTransformLtMatrix(param.m, param.n, param.dtype.Ctype, CUBLASLT_ORDER_COL32);
 
-    CUBLAS_API_CALL(cublasLtMatrixTransformDescCreate(&imma_param.trans_desc,
+    CUBLAS_CHECK(cublasLtMatrixTransformDescCreate(&imma_param.trans_desc,
         CUDA_R_32F));
 
     TransformLtMatrix(handle, imma_param.trans_desc, lt_param.A, imma_param.trans_A);
     TransformLtMatrix(handle, imma_param.trans_desc, lt_param.B, imma_param.trans_B);
 
-    RUNTIME_API_CALL(cudaStreamSynchronize(0));
+    CUDA_CHECK(cudaStreamSynchronize(0));
     return imma_param;
 }
 
@@ -213,7 +213,7 @@ void DestroyLtImmaParameter(LtImmaParam_t& imma_param) {
     DestroyLtMatrix(imma_param.trans_A);
     DestroyLtMatrix(imma_param.trans_B);
     DestroyLtMatrix(imma_param.trans_C);
-    CUBLAS_API_CALL(cublasLtMatrixTransformDescDestroy(imma_param.trans_desc));
+    CUBLAS_CHECK(cublasLtMatrixTransformDescDestroy(imma_param.trans_desc));
 }
 
 void PrintMatrix(LtMatrix_t mat) {
@@ -228,11 +228,11 @@ ProfResult_t LtMatrixMul(cublasLtHandle_t handle, LtGemmParam_t& lt_param,
     cudaEvent_t start;
     cudaEvent_t end;
     bool fault = false;
-    RUNTIME_API_CALL(cudaEventCreate(&start));
-    RUNTIME_API_CALL(cudaEventCreate(&end));
+    CUDA_CHECK(cudaEventCreate(&start));
+    CUDA_CHECK(cudaEventCreate(&end));
 
     if (imma_param.trans_desc) {
-        RUNTIME_API_CALL(cudaEventRecord(start));
+        CUDA_CHECK(cudaEventRecord(start));
         for (int i = 0; i < loop; ++i) {
 
             auto ret = cublasLtMatmul(handle, lt_param.op_desc, 
@@ -251,10 +251,10 @@ ProfResult_t LtMatrixMul(cublasLtHandle_t handle, LtGemmParam_t& lt_param,
                 break;
             }
         }
-        RUNTIME_API_CALL(cudaEventRecord(end));
+        CUDA_CHECK(cudaEventRecord(end));
     }
     else {
-        RUNTIME_API_CALL(cudaEventRecord(start));
+        CUDA_CHECK(cudaEventRecord(start));
         for (int i = 0; i < loop; ++i) {
 
             auto ret = cublasLtMatmul(handle, lt_param.op_desc, 
@@ -273,7 +273,7 @@ ProfResult_t LtMatrixMul(cublasLtHandle_t handle, LtGemmParam_t& lt_param,
                 break;
             }
         }
-        RUNTIME_API_CALL(cudaEventRecord(end));
+        CUDA_CHECK(cudaEventRecord(end));
     }
 
     auto ret = cudaEventSynchronize(end);
@@ -287,7 +287,7 @@ ProfResult_t LtMatrixMul(cublasLtHandle_t handle, LtGemmParam_t& lt_param,
 
     if (imma_param.trans_desc && !fault) {
         TransformLtMatrix(handle, imma_param.trans_desc, imma_param.trans_C, lt_param.C);
-        RUNTIME_API_CALL(cudaStreamSynchronize(0));
+        CUDA_CHECK(cudaStreamSynchronize(0));
     }
 
     if (!fault) {
@@ -300,12 +300,12 @@ ProfResult_t LtMatrixMul(cublasLtHandle_t handle, LtGemmParam_t& lt_param,
             PrintMatrix(lt_param.D);
         }
     }
-    RUNTIME_API_CALL(cudaMemset(lt_param.C.ptr, 0, LtMatrixSizeInBytes(lt_param.C)));
+    CUDA_CHECK(cudaMemset(lt_param.C.ptr, 0, LtMatrixSizeInBytes(lt_param.C)));
 
     float time = 0.f;
-    RUNTIME_API_CALL(cudaEventElapsedTime(&time, start, end));
-    RUNTIME_API_CALL(cudaEventDestroy(start));
-    RUNTIME_API_CALL(cudaEventDestroy(end));
+    CUDA_CHECK(cudaEventElapsedTime(&time, start, end));
+    CUDA_CHECK(cudaEventDestroy(start));
+    CUDA_CHECK(cudaEventDestroy(end));
 
     time = fault ? FLT_MAX : (time / loop);
     return ProfResult_t{algo_name, time};
@@ -320,7 +320,7 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
 
     auto gemm_dtype = GemmDtype(lt_param);
 
-    CUBLAS_API_CALL(cublasLtMatmulAlgoGetIds(
+    CUBLAS_CHECK(cublasLtMatmulAlgoGetIds(
         handle, gemm_dtype.computeType, gemm_dtype.computeType,
         gemm_dtype.Atype, gemm_dtype.Btype, gemm_dtype.Ctype, gemm_dtype.Ctype,
         max_algos, algo_ids.data(), &nb_algo_id));
@@ -332,7 +332,7 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
 
     for (int idx = 0; (idx < nb_algo_id) && (combine_count < max_combine_option); idx++) {
         cublasLtMatmulAlgo_t algo;
-        CUBLAS_API_CALL(cublasLtMatmulAlgoInit(handle, 
+        CUBLAS_CHECK(cublasLtMatmulAlgoInit(handle, 
             gemm_dtype.computeType, gemm_dtype.computeType, 
             gemm_dtype.Atype, gemm_dtype.Btype, gemm_dtype.Ctype, gemm_dtype.Ctype,
             algo_ids[idx], &algo));
@@ -344,25 +344,25 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
         int epilogue_mask;
         std::vector<int> tile_ids;
 
-        CUBLAS_API_CALL(cublasLtMatmulAlgoCapGetAttribute(&algo,
+        CUBLAS_CHECK(cublasLtMatmulAlgoCapGetAttribute(&algo,
             CUBLASLT_ALGO_CAP_SPLITK_SUPPORT, &splite_k_support, sizeof(int), nullptr));
-        CUBLAS_API_CALL(cublasLtMatmulAlgoCapGetAttribute(&algo,
+        CUBLAS_CHECK(cublasLtMatmulAlgoCapGetAttribute(&algo,
             CUBLASLT_ALGO_CAP_REDUCTION_SCHEME_MASK, &reduction_scheme_mask, sizeof(int), nullptr));
-        CUBLAS_API_CALL(cublasLtMatmulAlgoCapGetAttribute(&algo,
+        CUBLAS_CHECK(cublasLtMatmulAlgoCapGetAttribute(&algo,
             CUBLASLT_ALGO_CAP_CTA_SWIZZLING_SUPPORT, &swizzling_support, sizeof(int), nullptr));
-        CUBLAS_API_CALL(cublasLtMatmulAlgoCapGetAttribute(&algo,
+        CUBLAS_CHECK(cublasLtMatmulAlgoCapGetAttribute(&algo,
             CUBLASLT_ALGO_CAP_CUSTOM_OPTION_MAX, &custom_option_max, sizeof(int), nullptr));
-        CUBLAS_API_CALL(cublasLtMatmulAlgoCapGetAttribute(&algo,
+        CUBLAS_CHECK(cublasLtMatmulAlgoCapGetAttribute(&algo,
             CUBLASLT_ALGO_CAP_EPILOGUE_MASK, &epilogue_mask, sizeof(int), nullptr));
 
         size_t size_in_bytes = 0;
-        CUBLAS_API_CALL(cublasLtMatmulAlgoCapGetAttribute(&algo, CUBLASLT_ALGO_CAP_TILE_IDS,
+        CUBLAS_CHECK(cublasLtMatmulAlgoCapGetAttribute(&algo, CUBLASLT_ALGO_CAP_TILE_IDS,
             nullptr, 0, &size_in_bytes));
 
         int nb_tiles = static_cast<int>(size_in_bytes / sizeof(int));
         if (nb_tiles > 0) {
             tile_ids.resize(nb_tiles);
-            CUBLAS_API_CALL(cublasLtMatmulAlgoCapGetAttribute(
+            CUBLAS_CHECK(cublasLtMatmulAlgoCapGetAttribute(
                 &algo, CUBLASLT_ALGO_CAP_TILE_IDS, tile_ids.data(), size_in_bytes, nullptr));
         }
         else {
@@ -372,16 +372,16 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
 
         for (auto tile_id : tile_ids) {
  
-            CUBLAS_API_CALL(cublasLtMatmulAlgoConfigSetAttribute(
+            CUBLAS_CHECK(cublasLtMatmulAlgoConfigSetAttribute(
                 &algo, CUBLASLT_ALGO_CONFIG_TILE_ID, &tile_id, sizeof(int)));
  
             for (int c = 0; c <= custom_option_max; ++c) {
-                CUBLAS_API_CALL(cublasLtMatmulAlgoConfigSetAttribute(
+                CUBLAS_CHECK(cublasLtMatmulAlgoConfigSetAttribute(
                     &algo, CUBLASLT_ALGO_CONFIG_CUSTOM_OPTION, &c, sizeof(int)));
  
                 for (int s = 0; s <= swizzling_support; ++s) {
  
-                    CUBLAS_API_CALL(cublasLtMatmulAlgoConfigSetAttribute(
+                    CUBLAS_CHECK(cublasLtMatmulAlgoConfigSetAttribute(
                         &algo, CUBLASLT_ALGO_CONFIG_CTA_SWIZZLING, &s, sizeof(int)));
  
                     const static std::vector<int> num_split_k_option{1, 2, 3, 4};
@@ -389,7 +389,7 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
 
                         if (splite_k > 1 && !splite_k_support) continue;
 
-                        CUBLAS_API_CALL(cublasLtMatmulAlgoConfigSetAttribute(&algo,
+                        CUBLAS_CHECK(cublasLtMatmulAlgoConfigSetAttribute(&algo,
                             CUBLASLT_ALGO_CONFIG_SPLITK_NUM, &splite_k, sizeof(int)));
  
                         const static std::vector<cublasLtReductionScheme_t> reductions{
@@ -406,7 +406,7 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
                             if (splite_k > 1 && !(reduction & reduction_scheme_mask))
                                 continue;
 
-                            CUBLAS_API_CALL(cublasLtMatmulAlgoConfigSetAttribute(
+                            CUBLAS_CHECK(cublasLtMatmulAlgoConfigSetAttribute(
                                 &algo, CUBLASLT_ALGO_CONFIG_REDUCTION_SCHEME, &reduction, sizeof(int)));
  
                             cublasLtMatmulHeuristicResult_t heur_result;
@@ -458,8 +458,8 @@ std::vector<cublasLtMatmulHeuristicResult_t> HeuristicLtGemmAlgo(cublasLtHandle_
     // optional, use heuristic approach to select best GEMM kernel,
     // but not support IMMA currently
     cublasLtMatmulPreference_t preference;
-    CUBLAS_API_CALL(cublasLtMatmulPreferenceCreate(&preference));
-    CUBLAS_API_CALL(cublasLtMatmulPreferenceSetAttribute(
+    CUBLAS_CHECK(cublasLtMatmulPreferenceCreate(&preference));
+    CUBLAS_CHECK(cublasLtMatmulPreferenceSetAttribute(
         preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
         &lt_param.workspace_size, sizeof(size_t)));
 
@@ -477,13 +477,13 @@ std::vector<cublasLtMatmulHeuristicResult_t> HeuristicLtGemmAlgo(cublasLtHandle_
     else if (debug) {
         std::cerr << "cublasLtMatmulAlgoGetHeuristic, " << cublasGetErrorString(ret) << std::endl;
     }
-    CUBLAS_API_CALL(cublasLtMatmulPreferenceDestroy(preference));
+    CUBLAS_CHECK(cublasLtMatmulPreferenceDestroy(preference));
     return results;
 }
 
 std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param, bool all_algo, int loop, bool debug) {
     cublasLtHandle_t handle;
-    CUBLAS_API_CALL(cublasLtCreate(&handle));
+    CUBLAS_CHECK(cublasLtCreate(&handle));
 
     LtGemmParam_t lt_param = CreateLtGemmParameter(param);
 
@@ -532,7 +532,7 @@ std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param, bool all_alg
         DestroyLtImmaParameter(imma_param);
     }
     DestroyLtGemmParameter(lt_param);
-    CUBLAS_API_CALL(cublasLtDestroy(handle));
+    CUBLAS_CHECK(cublasLtDestroy(handle));
 
     return results;
 }

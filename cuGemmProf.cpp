@@ -68,9 +68,9 @@ int main (int argc, const char* argv[]) {
     auto result = Parse(argc, argv);
 
     auto device_id = result["d"].as<int>();
-    RUNTIME_API_CALL(cudaSetDevice(device_id));
+    CUDA_CHECK(cudaSetDevice(device_id));
     cudaDeviceProp prop;
-    RUNTIME_API_CALL(cudaGetDeviceProperties(&prop, device_id));
+    CUDA_CHECK(cudaGetDeviceProperties(&prop, device_id));
 
     GemmParam_t param;    
     param.m = result["m"].as<int>();
@@ -83,7 +83,7 @@ int main (int argc, const char* argv[]) {
     param.ldc = param.m;
     param.workspace_size = result["w"].as<size_t>() << 20;
     if (param.workspace_size) {
-        RUNTIME_API_CALL(cudaMalloc(&param.workspace, param.workspace_size));
+        CUDA_CHECK(cudaMalloc(&param.workspace, param.workspace_size));
     }
     else {
         param.workspace = nullptr;
@@ -121,34 +121,34 @@ int main (int argc, const char* argv[]) {
         auto dtypes = GetGemmDtype(dtype_id);
         param.dtype = dtypes;
 
-        auto src_dtype_size = Dtype2Size(dtypes.Atype);
-        auto dst_dtype_size = Dtype2Size(dtypes.Ctype);
+        auto src_dtype_size = DtypeToSize(dtypes.Atype);
+        auto dst_dtype_size = DtypeToSize(dtypes.Ctype);
 
         void* dev_A;
-        RUNTIME_API_CALL(cudaMalloc(&dev_A, param.m * param.k * src_dtype_size));
+        CUDA_CHECK(cudaMalloc(&dev_A, param.m * param.k * src_dtype_size));
         InitMatrix(dev_A,
             (param.transa == CUBLAS_OP_N) ? param.m : param.k,
             (param.transa == CUBLAS_OP_N) ? param.k : param.m,
             param.lda, param.dtype.Atype);
         void* dev_B;
-        RUNTIME_API_CALL(cudaMalloc(&dev_B, param.k * param.n * src_dtype_size));
+        CUDA_CHECK(cudaMalloc(&dev_B, param.k * param.n * src_dtype_size));
         InitMatrix(dev_B,
             (param.transb == CUBLAS_OP_N) ? param.k : param.n,
             (param.transb == CUBLAS_OP_N) ? param.n : param.k,
             param.ldb, param.dtype.Btype);
         void* dev_C;
-        RUNTIME_API_CALL(cudaMalloc(&dev_C, param.m * param.n * dst_dtype_size));
-        RUNTIME_API_CALL(cudaMemset(dev_C, 0, param.m * param.n * dst_dtype_size));
+        CUDA_CHECK(cudaMalloc(&dev_C, param.m * param.n * dst_dtype_size));
+        CUDA_CHECK(cudaMemset(dev_C, 0, param.m * param.n * dst_dtype_size));
         void* dev_D;
-        RUNTIME_API_CALL(cudaMalloc(&dev_D, param.m * param.n * dst_dtype_size));
-        RUNTIME_API_CALL(cudaMemset(dev_D, 0, param.m * param.n * dst_dtype_size));
+        CUDA_CHECK(cudaMalloc(&dev_D, param.m * param.n * dst_dtype_size));
+        CUDA_CHECK(cudaMemset(dev_D, 0, param.m * param.n * dst_dtype_size));
 
         param.A = dev_A;
         param.B = dev_B;
         param.C = dev_C;
         param.D = dev_D;
 
-        auto compute_dtype_size = Dtype2Size(dtypes.computeType);
+        auto compute_dtype_size = DtypeToSize(dtypes.computeType);
  
         void* host_alpha;
         host_alpha = AllocAlphaScale(dtypes.computeType);
@@ -180,10 +180,10 @@ int main (int argc, const char* argv[]) {
         auto lt_results = ProfileLtGemm(param, run_all_algo, loop, debug);
         PrintLtResult(prop.name, param, lt_results);
 
-        RUNTIME_API_CALL(cudaFree(dev_A));
-        RUNTIME_API_CALL(cudaFree(dev_B));
-        RUNTIME_API_CALL(cudaFree(dev_C));
-        RUNTIME_API_CALL(cudaFree(dev_D));
+        CUDA_CHECK(cudaFree(dev_A));
+        CUDA_CHECK(cudaFree(dev_B));
+        CUDA_CHECK(cudaFree(dev_C));
+        CUDA_CHECK(cudaFree(dev_D));
         free(host_alpha);
         free(host_beta);
     }

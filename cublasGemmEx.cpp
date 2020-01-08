@@ -62,14 +62,14 @@ std::vector<ProfResult_t> ProfileGemm(const GemmParam_t& param,
     const std::vector<cublasGemmAlgo_t>& algos, int loop, bool debug) {
 
     cublasHandle_t handle;
-    CUBLAS_API_CALL(cublasCreate(&handle));
+    CUBLAS_CHECK(cublasCreate(&handle));
 
     cudaEvent_t start;
     cudaEvent_t end;
     cublasStatus_t ret;
 
-    RUNTIME_API_CALL(cudaEventCreate(&start));
-    RUNTIME_API_CALL(cudaEventCreate(&end));
+    CUDA_CHECK(cudaEventCreate(&start));
+    CUDA_CHECK(cudaEventCreate(&end));
 
     std::vector<ProfResult_t> results;
     for (auto algo : algos) {
@@ -78,7 +78,7 @@ std::vector<ProfResult_t> ProfileGemm(const GemmParam_t& param,
         float time = 0.f;
         bool fault = false;
 
-        RUNTIME_API_CALL(cudaEventRecord(start));
+        CUDA_CHECK(cudaEventRecord(start));
         for (int i = 0; i < loop; ++i) {
             ret = cublasGemmEx(handle,
                                param.transa, param.transb,
@@ -90,34 +90,34 @@ std::vector<ProfResult_t> ProfileGemm(const GemmParam_t& param,
             if (ret != CUBLAS_STATUS_SUCCESS) {
                 fault = true;
                 if (debug) {
-                    std::cerr << "cublasGemmEx" << ", " << Algo2Str(algo) << 
+                    std::cerr << "cublasGemmEx" << ", " << AlgoToString(algo) << 
                         ", " << cublasGetErrorString(ret) << std::endl;
                 }
                 break;
             }
         }
-        RUNTIME_API_CALL(cudaEventRecord(end));
-        RUNTIME_API_CALL(cudaEventSynchronize(end));
-        RUNTIME_API_CALL(cudaEventElapsedTime(&time, start, end));
+        CUDA_CHECK(cudaEventRecord(end));
+        CUDA_CHECK(cudaEventSynchronize(end));
+        CUDA_CHECK(cudaEventElapsedTime(&time, start, end));
 
         if (!fault) {
             fault = !Verify(param.C, param.D, param.m * param.n, param.dtype.Ctype);
             if (fault && debug) {
-                std::cerr << "cublasGemmEx" << ", " << Algo2Str(algo) << ", verification failed" << std::endl;
+                std::cerr << "cublasGemmEx" << ", " << AlgoToString(algo) << ", verification failed" << std::endl;
                 PrintMatrix(param.A, param.m, param.k, param.lda, param.dtype.Atype);
                 PrintMatrix(param.B, param.k, param.n, param.ldb, param.dtype.Btype);
                 PrintMatrix(param.C, param.m, param.n, param.ldc, param.dtype.Ctype);
                 PrintMatrix(param.D, param.m, param.n, param.ldc, param.dtype.Ctype);
             }
         }
-        RUNTIME_API_CALL(cudaMemset(param.C, 0, param.m * param.n * Dtype2Size(param.dtype.Ctype)));
+        CUDA_CHECK(cudaMemset(param.C, 0, param.m * param.n * DtypeToSize(param.dtype.Ctype)));
 
         time = fault ? FLT_MAX : (time / loop);
-        results.push_back(ProfResult_t{Algo2Str(algo), time});
+        results.push_back(ProfResult_t{AlgoToString(algo), time});
     }
 
-    RUNTIME_API_CALL(cudaEventDestroy(start));
-    RUNTIME_API_CALL(cudaEventDestroy(end));
-    CUBLAS_API_CALL(cublasDestroy(handle));
+    CUDA_CHECK(cudaEventDestroy(start));
+    CUDA_CHECK(cudaEventDestroy(end));
+    CUBLAS_CHECK(cublasDestroy(handle));
     return results;
 }

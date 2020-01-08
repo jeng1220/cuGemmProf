@@ -55,7 +55,7 @@ void InitMatrix(void* ptr, int w, int h, int ld, cudaDataType_t dtype)
         default:
             assert(false);
     }
-    RUNTIME_API_CALL(cudaStreamSynchronize(0));
+    CUDA_CHECK(cudaStreamSynchronize(0));
 }
 
 template <typename data_t>
@@ -107,7 +107,7 @@ void NaiveMatrixTranspose(
         default:
             assert(false);
     }
-    RUNTIME_API_CALL(cudaStreamSynchronize(0));
+    CUDA_CHECK(cudaStreamSynchronize(0));
 }
 
 template <typename acc_t, typename src_t, typename dst_t>
@@ -189,7 +189,7 @@ void NaiveGemmNN(
         default:
             assert(false);
     }
-    RUNTIME_API_CALL(cudaStreamSynchronize(0));
+    CUDA_CHECK(cudaStreamSynchronize(0));
 }
 
 int GetGemmTypeId(cudaDataType_t compute_type,
@@ -222,11 +222,11 @@ void NaiveGemm(
     void* C, cudaDataType_t c_type, int ldc,
     cudaDataType_t compute_type) 
 {
-    int src_dtype_size = Dtype2Size(a_type);
+    int src_dtype_size = DtypeToSize(a_type);
     void* dev_A = (void*)A;
     int trans_lda = lda;
     if (transa == CUBLAS_OP_T) {
-        RUNTIME_API_CALL(cudaMalloc(&dev_A, m * lda * src_dtype_size));
+        CUDA_CHECK(cudaMalloc(&dev_A, m * lda * src_dtype_size));
         NaiveMatrixTranspose(lda, m, A, dev_A, a_type);
         trans_lda = m;
     }
@@ -234,15 +234,15 @@ void NaiveGemm(
     void* dev_B = (void*)B;
     int trans_ldb = ldb;
     if (transb == CUBLAS_OP_T) {
-        RUNTIME_API_CALL(cudaMalloc(&dev_B, k * ldb * src_dtype_size));
+        CUDA_CHECK(cudaMalloc(&dev_B, k * ldb * src_dtype_size));
         NaiveMatrixTranspose(ldb, k, B, dev_B, b_type);
         trans_ldb = k;
     }
 
     auto gemm_type = GetGemmTypeId(compute_type, a_type, c_type);
     NaiveGemmNN(m, n, k, dev_A, trans_lda, dev_B, trans_ldb, C, ldc, gemm_type);
-    if (dev_A != A) RUNTIME_API_CALL(cudaFree(dev_A));
-    if (dev_B != B) RUNTIME_API_CALL(cudaFree(dev_B));
+    if (dev_A != A) CUDA_CHECK(cudaFree(dev_A));
+    if (dev_B != B) CUDA_CHECK(cudaFree(dev_B));
 }
 
 template<typename T>
@@ -328,7 +328,7 @@ void PrintMatrixT(const void* ptr, int w, int h, int ld)
     auto dev_ptr = reinterpret_cast<const data_t*>(ptr);
     size_t size = ld * h * sizeof(data_t);
     data_t* host_ptr = (data_t*)malloc(size);
-    RUNTIME_API_CALL(cudaMemcpy(host_ptr, dev_ptr, size, cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(host_ptr, dev_ptr, size, cudaMemcpyDeviceToHost));
 
     for (int y = 0; y < h; ++y) {
         for (int x = 0; x < ld; ++x) {
@@ -346,7 +346,7 @@ void PrintMatrixT<half>(const void* ptr, int w, int h, int ld)
     auto dev_ptr = reinterpret_cast<const half*>(ptr);
     size_t size = ld * h * sizeof(half);
     half* host_ptr = (half*)malloc(size);
-    RUNTIME_API_CALL(cudaMemcpy(host_ptr, dev_ptr, size, cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(host_ptr, dev_ptr, size, cudaMemcpyDeviceToHost));
 
     for (int y = 0; y < h; ++y) {
         for (int x = 0; x < ld; ++x) {

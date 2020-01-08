@@ -4,7 +4,7 @@
 
 #define ADD_KEY_AND_STR(x) {x, #x}
 
-#define RUNTIME_API_CALL(apiFuncCall)                                          \
+#define CUDA_CHECK(apiFuncCall)                                                \
 do {                                                                           \
     cudaError_t _status = apiFuncCall;                                         \
     if (_status != cudaSuccess) {                                              \
@@ -14,7 +14,7 @@ do {                                                                           \
     }                                                                          \
 } while (0)
 
-#define CUBLAS_API_CALL(apiFuncCall)                                                  \
+#define CUBLAS_CHECK(apiFuncCall)                                                     \
 do {                                                                                  \
     cublasStatus_t _status = apiFuncCall;                                             \
     if (_status != CUBLAS_STATUS_SUCCESS) {                                           \
