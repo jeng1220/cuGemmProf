@@ -404,9 +404,18 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
  
                             cublasLtMatmulHeuristicResult_t heur_result;
                             cublasStatus_t ret;
-                            ret = (cublasLtMatmulAlgoCheck(handle, lt_param.op_desc,
-                                lt_param.A.desc, lt_param.B.desc, lt_param.C.desc, lt_param.C.desc,
-                                &algo, &heur_result));
+
+                            if (imma_param.trans_desc) {
+                                ret = (cublasLtMatmulAlgoCheck(handle, lt_param.op_desc,
+                                    imma_param.trans_A.desc, imma_param.trans_B.desc,
+                                    imma_param.trans_C.desc, imma_param.trans_C.desc,
+                                    &algo, &heur_result));
+                            }
+                            else {
+                                ret = (cublasLtMatmulAlgoCheck(handle, lt_param.op_desc,
+                                    lt_param.A.desc, lt_param.B.desc, lt_param.C.desc, lt_param.C.desc,
+                                    &algo, &heur_result));
+                            }
 
                             if (ret == CUBLAS_STATUS_SUCCESS &&
                                 heur_result.state == CUBLAS_STATUS_SUCCESS &&
