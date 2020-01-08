@@ -416,7 +416,7 @@ std::vector<ProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
                                 results.push_back(LtMatrixMul(handle,
                                     lt_param, imma_param, loop, debug, "CUBLASLT_ALL_ALG"));
 
-                                cublasLtAlgoAttr_t algo_attr{idx, tile_id, reduction, s, c,
+                                LtGemmAlgoAttr_t algo_attr{idx, tile_id, reduction, s, c,
                                     heur_result.workspaceSize, heur_result.wavesCount};
                                 combine_count++;
                             }

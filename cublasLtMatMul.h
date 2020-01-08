@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-struct cublasLtAlgoAttr_t {
+struct LtGemmAlgoAttr_t {
     int algo_id;
     int tile_id;
     int reduction_scheme;
