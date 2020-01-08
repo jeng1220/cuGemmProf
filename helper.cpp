@@ -318,13 +318,19 @@ void PrintLtResult(const char dev_name[], const GemmParam_t& param,
 
         std::cout << all_info << result.info.algo << ", " << 
             (result.info.time == FLT_MAX ? NAN : result.info.time) << ", " <<
-            (result.info.time == FLT_MAX ? NAN : gflops) << ", " <<
-            std::to_string(result.attr.algo_id) << ", " <<
-            TileId2String(result.attr.tile_id) << ", " <<
-            ReductionSchemeToString(result.attr.reduction_scheme) << ", " <<
-            std::to_string(result.attr.swizzle) << ", " <<
-            std::to_string(result.attr.custom_option) << ", " <<
-            std::to_string(result.attr.workspace_size) << ", " <<
-            std::to_string(result.attr.wave_count) << std::endl;
+            (result.info.time == FLT_MAX ? NAN : gflops) << ", ";
+
+        if (result.attr.wave_count != 0.f) {
+            std::cout << std::to_string(result.attr.algo_id) << ", " <<
+                TileId2String(result.attr.tile_id) << ", " <<
+                ReductionSchemeToString(result.attr.reduction_scheme) << ", " <<
+                std::to_string(result.attr.swizzle) << ", " <<
+                std::to_string(result.attr.custom_option) << ", " <<
+                std::to_string(result.attr.workspace_size) << ", " <<
+                std::to_string(result.attr.wave_count) << std::endl;
+        }
+        else {
+            std::cout << "NA" << std::endl;
+        }
     }
 }

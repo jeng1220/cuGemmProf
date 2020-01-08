@@ -495,27 +495,28 @@ std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param, bool all_alg
     if (all_algo) {
         results = ProfileAllLtGemmAlgo(handle, lt_param, imma_param, loop, debug);
     }
-    else {
-        std::vector<cublasLtMatmulHeuristicResult_t> heuristic_results;
-        std::string algo_name{"CUBLASLT_DEFAULT_ALG"};
 
-        if (use_imma) {
-            algo_name = "CUBLASLT_IMMA_ALG";
-        }
-        else {
-            heuristic_results = HeuristicLtGemmAlgo(handle, lt_param, 1, debug);
-            if (heuristic_results.size() > 0) {
-                algo_name = "CUBLASLT_HEURISTIC_ALG";
-                lt_param.algo = &heuristic_results[0].algo;
-            }
-        }
+    std::vector<cublasLtMatmulHeuristicResult_t> heuristic_results;
+    std::string algo_name{"CUBLASLT_DEFAULT_ALG"};
+    lt_param.algo = nullptr;
 
-        auto result = LtMatrixMul(handle, lt_param, imma_param,
-            loop, debug, algo_name);
-        LtGemmAlgoAttr_t attr;
-        memset(&attr, 0, sizeof(LtGemmAlgoAttr_t));
-        results.push_back(LtProfResult_t{attr, result});
+    if (use_imma) {
+        algo_name = "CUBLASLT_DEFAULT_IMMA_ALG";
     }
+    else {
+        heuristic_results = HeuristicLtGemmAlgo(handle, lt_param, 1, debug);
+        if (heuristic_results.size() > 0) {
+            algo_name = "CUBLASLT_1ST_HEURISTIC_ALG";
+            lt_param.algo = &heuristic_results[0].algo;
+        }
+    }
+
+    auto result = LtMatrixMul(handle, lt_param, imma_param,
+        loop, debug, algo_name);
+    LtGemmAlgoAttr_t attr;
+    memset(&attr, 0, sizeof(LtGemmAlgoAttr_t));
+    results.push_back(LtProfResult_t{attr, result});
+
 
     if (use_imma) {
         DestroyLtImmaParameter(imma_param);
