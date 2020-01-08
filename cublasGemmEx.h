@@ -7,5 +7,5 @@
 std::vector<cublasGemmAlgo_t> AllCudaCoreAlgo();
 std::vector<cublasGemmAlgo_t> AllTensorCoreAlgo();
 
-std::vector<Result_t> ProfileGemm(const GemmParam_t& param,
+std::vector<ProfResult_t> ProfileGemm(const GemmParam_t& param,
     const std::vector<cublasGemmAlgo_t>& algos, int loop, bool debug);

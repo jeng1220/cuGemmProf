@@ -58,7 +58,7 @@ std::vector<cublasGemmAlgo_t> AllTensorCoreAlgo() {
     return kAlgos;
 }
 
-std::vector<Result_t> ProfileGemm(const GemmParam_t& param,
+std::vector<ProfResult_t> ProfileGemm(const GemmParam_t& param,
     const std::vector<cublasGemmAlgo_t>& algos, int loop, bool debug) {
 
     cublasHandle_t handle;
@@ -71,7 +71,7 @@ std::vector<Result_t> ProfileGemm(const GemmParam_t& param,
     RUNTIME_API_CALL(cudaEventCreate(&start));
     RUNTIME_API_CALL(cudaEventCreate(&end));
 
-    std::vector<Result_t> results;
+    std::vector<ProfResult_t> results;
     for (auto algo : algos) {
 
         //param.algo = algo;
@@ -113,7 +113,7 @@ std::vector<Result_t> ProfileGemm(const GemmParam_t& param,
         RUNTIME_API_CALL(cudaMemset(param.C, 0, param.m * param.n * Dtype2Size(param.dtype.Ctype)));
 
         time = fault ? FLT_MAX : (time / loop);
-        results.push_back(Result_t{Algo2Str(algo), time});
+        results.push_back(ProfResult_t{Algo2Str(algo), time});
     }
 
     RUNTIME_API_CALL(cudaEventDestroy(start));

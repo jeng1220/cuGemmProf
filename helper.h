@@ -33,7 +33,7 @@ struct GemmParam_t {
     void* workspace;
 };
 
-struct Result_t {
+struct ProfResult_t {
     std::string algo;
     float time;
 };
@@ -45,4 +45,4 @@ std::string Dtype2Str(cudaDataType_t dtype);
 std::string Algo2Str(cublasGemmAlgo_t algo);
 void* AllocAlphaScale(cudaDataType_t dtype);
 void PrintResult(const char dev_name[], const GemmParam_t& param,
-    const std::vector<Result_t>& results);
+    const std::vector<ProfResult_t>& results);

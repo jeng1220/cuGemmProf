@@ -221,7 +221,7 @@ void PrintMatrix(LtMatrix_t mat) {
     PrintMatrix(mat.ptr, attr.w, attr.h, attr.ld, attr.dtype);
 }
 
-Result_t LtMatrixMul(cublasLtHandle_t handle, LtGemmParam_t& lt_param,
+ProfResult_t LtMatrixMul(cublasLtHandle_t handle, LtGemmParam_t& lt_param,
     LtImmaParam_t& imma_param, int loop, bool debug,
     const std::string& algo_name)
 {
@@ -301,10 +301,10 @@ Result_t LtMatrixMul(cublasLtHandle_t handle, LtGemmParam_t& lt_param,
     RUNTIME_API_CALL(cudaEventDestroy(end));
 
     time = fault ? FLT_MAX : (time / loop);
-    return Result_t{algo_name, time};
+    return ProfResult_t{algo_name, time};
 }
 
-std::vector<Result_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
+std::vector<ProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
     LtGemmParam_t& lt_param, LtImmaParam_t& imma_param, int loop, bool debug) {
 
     const int max_algos = 40;
@@ -319,7 +319,7 @@ std::vector<Result_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
         max_algos, algo_ids.data(), &nb_algo_id));
     algo_ids.resize(nb_algo_id);
 
-    std::vector<Result_t> results;
+    std::vector<ProfResult_t> results;
     const int max_combine_option = 6000;
     int combine_count = 0;
 
@@ -463,7 +463,7 @@ std::vector<cublasLtMatmulHeuristicResult_t> HeuristicLtGemmAlgo(cublasLtHandle_
     return results;
 }
 
-std::vector<Result_t> ProfileLtGemm(const GemmParam_t& param, bool all_algo, int loop, bool debug) {
+std::vector<ProfResult_t> ProfileLtGemm(const GemmParam_t& param, bool all_algo, int loop, bool debug) {
     cublasLtHandle_t handle;
     CUBLAS_API_CALL(cublasLtCreate(&handle));
 
@@ -480,7 +480,7 @@ std::vector<Result_t> ProfileLtGemm(const GemmParam_t& param, bool all_algo, int
         imma_param = CreateLtImmaParameter(handle, param, lt_param);
     }
 
-    std::vector<Result_t> results;
+    std::vector<ProfResult_t> results;
     if (all_algo) {
         results = ProfileAllLtGemmAlgo(handle, lt_param, imma_param, loop, debug);
     }

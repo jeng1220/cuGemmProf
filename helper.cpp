@@ -198,12 +198,12 @@ std::string TensorCoreRestrictions(const GemmParam_t& param) {
     return Mask2Str(mask);
 }
 
-bool SortResult (const Result_t& x, const Result_t& y) { 
+bool SortResult (const ProfResult_t& x, const ProfResult_t& y) { 
     return (x.time < y.time); 
 }
 
 void PrintResult(const char dev_name[], const GemmParam_t& param,
-    const std::vector<Result_t>& results) {
+    const std::vector<ProfResult_t>& results) {
     std::cout << "device, op(A), op(B), "
         "m, n, k, ComputeType, Atype, Btype, Ctype, "
         "Dp4aRestrictions(lda.ldb), TensorCoreRestrictions(m.k.A.B.C.lda.ldb.ldc), "
@@ -226,7 +226,7 @@ void PrintResult(const char dev_name[], const GemmParam_t& param,
 
     float workload = (2.f * param.m * param.n * param.k) * 1e-9;
 
-    std::vector<Result_t> order = results;
+    std::vector<ProfResult_t> order = results;
     std::sort(order.begin(), order.end(), SortResult);
 
     for (auto result : order) {
