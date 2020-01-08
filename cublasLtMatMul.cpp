@@ -29,11 +29,11 @@ LtMatrixAttr_t LtMatrixAttr(const LtMatrix_t& mat) {
     
     CUBLAS_API_CALL(cublasLtMatrixLayoutGetAttribute(
 	    mat.desc, CUBLASLT_MATRIX_LAYOUT_ROWS,
-        &attr.h, sizeof(long), nullptr));
+        &attr.w, sizeof(long), nullptr));
 
     CUBLAS_API_CALL(cublasLtMatrixLayoutGetAttribute(
 	    mat.desc, CUBLASLT_MATRIX_LAYOUT_COLS,
-        &attr.w, sizeof(long), nullptr));
+        &attr.h, sizeof(long), nullptr));
 
     CUBLAS_API_CALL(cublasLtMatrixLayoutGetAttribute(
 	    mat.desc, CUBLASLT_MATRIX_LAYOUT_LD,

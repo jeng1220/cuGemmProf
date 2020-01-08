@@ -44,13 +44,13 @@ void InitMatrix(void* ptr, int w, int h, int ld, cudaDataType_t dtype)
         case CUDA_R_64F:
             InitMatrixKernal<double><<<grid, block>>>(ptr, w, h, ld);
         case CUDA_C_8I:
-            InitMatrixKernal< thrust::complex<char> ><<<grid, block>>>(ptr, w, h, ld);
+            InitMatrixKernal<char><<<grid, block>>>(ptr, 2 * w, h, 2 * ld);
             break;
         case CUDA_C_32F:
-            InitMatrixKernal< thrust::complex<float> ><<<grid, block>>>(ptr, w, h, ld);
+            InitMatrixKernal<float><<<grid, block>>>(ptr, 2 * w, h, 2 * ld);
             break;
         case CUDA_C_64F:
-            InitMatrixKernal< thrust::complex<double> ><<<grid, block>>>(ptr, w, h, ld);
+            InitMatrixKernal<double><<<grid, block>>>(ptr, 2 * w, h, 2 * ld);
             break;
         default:
             assert(false);
