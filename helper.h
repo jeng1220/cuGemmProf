@@ -56,7 +56,7 @@ struct LtProfResult_t
 
 GemmDtype_t GetGemmDtype(int id);
 int Dtype2Size(cudaDataType_t dtype);
-std::string Operation2Str(cublasOperation_t op);
+std::string Operation2String(cublasOperation_t op);
 std::string Dtype2Str(cudaDataType_t dtype);
 std::string Algo2Str(cublasGemmAlgo_t algo);
 void* AllocAlphaScale(cudaDataType_t dtype);

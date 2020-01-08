@@ -1,5 +1,6 @@
 #include "helper.h"
 #include "macro.h"
+#include <cublasLt.h>
 #include <thrust/complex.h>
 #include <algorithm>
 #include <map>
@@ -52,7 +53,7 @@ int Dtype2Size(cudaDataType_t dtype) {
     return kDtype2Size.at(dtype);
 }
 
-std::string Operation2Str(cublasOperation_t op) {
+std::string Operation2String(cublasOperation_t op) {
     const static std::map<cublasOperation_t, std::string> kOperation2Str{
         ADD_KEY_AND_STR(CUBLAS_OP_N),
         ADD_KEY_AND_STR(CUBLAS_OP_T)
@@ -211,8 +212,8 @@ void PrintResult(const char dev_name[], const GemmParam_t& param,
 
     std::string all_info;
     all_info = std::string(dev_name) + ", "
-        + Operation2Str(param.transa) + ", "
-        + Operation2Str(param.transb) + ", "
+        + Operation2String(param.transa) + ", "
+        + Operation2String(param.transb) + ", "
         + std::to_string(param.m) + ", "
         + std::to_string(param.n) + ", "
         + std::to_string(param.k) + ", "
@@ -238,6 +239,48 @@ void PrintResult(const char dev_name[], const GemmParam_t& param,
     }
 }
 
+std::string TileId2String(int id) {
+    const static std::map<cublasLtMatmulTile_t, std::string> TileId2String{
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_UNDEFINED),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_8x8),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_8x16),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_16x8),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_8x32),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_16x16),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_32x8),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_8x64),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_16x32),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_32x16),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_64x8),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_32x32),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_32x64),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_64x32),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_32x128),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_64x64),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_128x32),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_64x128),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_128x64),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_64x256),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_128x128),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_256x64),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_64x512),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_128x256),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_256x128),
+        ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_512x64),
+    };
+    return TileId2String.at(static_cast<cublasLtMatmulTile_t>(id));
+}
+
+std::string ReductionSchemeToString(int id) {
+    const static std::map<cublasLtReductionScheme_t, std::string> kRedSch2Str{
+        ADD_KEY_AND_STR(CUBLASLT_REDUCTION_SCHEME_NONE),
+        ADD_KEY_AND_STR(CUBLASLT_REDUCTION_SCHEME_INPLACE),
+        ADD_KEY_AND_STR(CUBLASLT_REDUCTION_SCHEME_COMPUTE_TYPE),
+        ADD_KEY_AND_STR(CUBLASLT_REDUCTION_SCHEME_OUTPUT_TYPE	),
+    };
+    return kRedSch2Str.at(static_cast<cublasLtReductionScheme_t>(id));
+}
+
 bool SortLtResult (const LtProfResult_t& x, const LtProfResult_t& y) { 
     return (x.info.time < y.info.time); 
 }
@@ -252,8 +295,8 @@ void PrintLtResult(const char dev_name[], const GemmParam_t& param,
 
     std::string all_info;
     all_info = std::string(dev_name) + ", "
-        + Operation2Str(param.transa) + ", "
-        + Operation2Str(param.transb) + ", "
+        + Operation2String(param.transa) + ", "
+        + Operation2String(param.transb) + ", "
         + std::to_string(param.m) + ", "
         + std::to_string(param.n) + ", "
         + std::to_string(param.k) + ", "
@@ -277,8 +320,8 @@ void PrintLtResult(const char dev_name[], const GemmParam_t& param,
             (result.info.time == FLT_MAX ? NAN : result.info.time) << ", " <<
             (result.info.time == FLT_MAX ? NAN : gflops) << ", " <<
             std::to_string(result.attr.algo_id) << ", " <<
-            std::to_string(result.attr.tile_id) << ", " <<
-            std::to_string(result.attr.reduction_scheme) << ", " <<
+            TileId2String(result.attr.tile_id) << ", " <<
+            ReductionSchemeToString(result.attr.reduction_scheme) << ", " <<
             std::to_string(result.attr.swizzle) << ", " <<
             std::to_string(result.attr.custom_option) << ", " <<
             std::to_string(result.attr.workspace_size) << ", " <<
