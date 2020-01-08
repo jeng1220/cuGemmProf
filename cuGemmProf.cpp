@@ -72,7 +72,7 @@ int main (int argc, const char* argv[]) {
     cudaDeviceProp prop;
     RUNTIME_API_CALL(cudaGetDeviceProperties(&prop, device_id));
 
-    Param_t param;    
+    GemmParam_t param;    
     param.m = result["m"].as<int>();
     param.n = result["n"].as<int>();
     param.k = result["k"].as<int>();

@@ -147,7 +147,7 @@ GemmDtype_t GemmDtype(LtGemmParam_t lt_param) {
     return gemm_dtype;
 }
 
-LtGemmParam_t CreateLtParameter(const Param_t& param) {
+LtGemmParam_t CreateLtParameter(const GemmParam_t& param) {
     LtGemmParam_t lt_param;
 
     CUBLAS_API_CALL(cublasLtMatmulDescCreate(&lt_param.op_desc, param.dtype.computeType));
@@ -192,7 +192,7 @@ struct LtImmaParam_t {
 };
 
 LtImmaParam_t CreateImmaParameter(cublasLtHandle_t handle,
-    const Param_t& param, const LtGemmParam_t& lt_param) {
+    const GemmParam_t& param, const LtGemmParam_t& lt_param) {
 
     LtImmaParam_t imma_param;
     imma_param.trans_A = CreateTransformLtMatrix(param.m, param.k, param.dtype.Atype, CUBLASLT_ORDER_COL32);
@@ -463,7 +463,7 @@ std::vector<cublasLtMatmulHeuristicResult_t> HeuristicLtGemmAlgo(cublasLtHandle_
     return results;
 }
 
-std::vector<Result_t> ProfileLtGemm(const Param_t& param, bool all_algo, int loop, bool debug) {
+std::vector<Result_t> ProfileLtGemm(const GemmParam_t& param, bool all_algo, int loop, bool debug) {
     cublasLtHandle_t handle;
     CUBLAS_API_CALL(cublasLtCreate(&handle));
 

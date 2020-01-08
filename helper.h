@@ -13,7 +13,7 @@ struct GemmDtype_t {
     cudaDataType_t Ctype;
 };
 
-struct Param_t {
+struct GemmParam_t {
     cublasOperation_t transa;
     cublasOperation_t transb;
     int m;
@@ -44,5 +44,5 @@ std::string Operation2Str(cublasOperation_t op);
 std::string Dtype2Str(cudaDataType_t dtype);
 std::string Algo2Str(cublasGemmAlgo_t algo);
 void* AllocAlphaScale(cudaDataType_t dtype);
-void PrintResult(const char dev_name[], const Param_t& param,
+void PrintResult(const char dev_name[], const GemmParam_t& param,
     const std::vector<Result_t>& results);

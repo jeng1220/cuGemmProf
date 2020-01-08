@@ -177,14 +177,14 @@ std::string Mask2Str(const std::vector<bool>& mask) {
     return info;
 }
 
-std::string Dp4aRestrictions(const Param_t& param) {
+std::string Dp4aRestrictions(const GemmParam_t& param) {
     std::vector<bool> mask(2);
     mask[0] = param.lda % 4 == 0;
     mask[1] = param.ldb % 4 == 0;
     return Mask2Str(mask);
 }
 
-std::string TensorCoreRestrictions(const Param_t& param) {
+std::string TensorCoreRestrictions(const GemmParam_t& param) {
     // refer to https://docs.nvidia.com/cuda/cublas/#tensorop-restrictions
     std::vector<bool> mask(8);
     mask[0] = param.m % 4 == 0;
@@ -202,7 +202,7 @@ bool SortResult (const Result_t& x, const Result_t& y) {
     return (x.time < y.time); 
 }
 
-void PrintResult(const char dev_name[], const Param_t& param,
+void PrintResult(const char dev_name[], const GemmParam_t& param,
     const std::vector<Result_t>& results) {
     std::cout << "device, op(A), op(B), "
         "m, n, k, ComputeType, Atype, Btype, Ctype, "

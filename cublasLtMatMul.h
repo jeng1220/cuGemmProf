@@ -13,4 +13,4 @@ struct cublasLtAlgoAttr_t {
     float wave_count;
 };
 
-std::vector<Result_t> ProfileLtGemm(const Param_t& param, bool all_algo, int loop, bool debug);
+std::vector<Result_t> ProfileLtGemm(const GemmParam_t& param, bool all_algo, int loop, bool debug);

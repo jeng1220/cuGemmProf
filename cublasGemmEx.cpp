@@ -58,7 +58,7 @@ std::vector<cublasGemmAlgo_t> AllTensorCoreAlgo() {
     return kAlgos;
 }
 
-std::vector<Result_t> ProfileGemm(const Param_t& param,
+std::vector<Result_t> ProfileGemm(const GemmParam_t& param,
     const std::vector<cublasGemmAlgo_t>& algos, int loop, bool debug) {
 
     cublasHandle_t handle;
