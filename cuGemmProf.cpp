@@ -186,15 +186,15 @@ int main (int argc, const char* argv[]) {
             param.dtype.compute_type);
 
         auto results = ProfileGemm(param, selected_cuda_algo, loop, debug);
-        PrintResult(prop.name, param, results, rank);
+        PrintResult(param, results, rank);
 
         if (prop.major > 6) {
             results = ProfileGemm(param, selected_tensor_algo, loop, debug);
-            PrintResult(prop.name, param, results, rank);
+            PrintResult(param, results, rank);
         }
 
         auto lt_results = ProfileLtGemm(param, run_all_algo, loop, debug);
-        PrintLtResult(prop.name, param, lt_results, rank);
+        PrintLtResult(param, lt_results, rank);
 
         CUDA_CHECK(cudaFree(dev_A));
         CUDA_CHECK(cudaFree(dev_B));

@@ -231,9 +231,14 @@ void PrintResultTile() {
         "LtAlgoId, TileId, SpliteK, Red.Sch, Swizzle, CustomId, WorkSpaceSize, WaveCount" << std::endl;
 }
 
-std::string BasicGemmInfo(const char dev_name[], const GemmParam_t& param) {
+std::string BasicGemmInfo(const GemmParam_t& param) {
+    int dev_id;
+    CUDA_CHECK(cudaGetDevice(&dev_id));
+    cudaDeviceProp prop;
+    CUDA_CHECK(cudaGetDeviceProperties(&prop, dev_id));
+
     std::string info;
-    info = std::string(dev_name) + ", "
+    info = std::string(prop.name) + ", "
         + OperationToString(param.transa) + ", "
         + OperationToString(param.transb) + ", "
         + std::to_string(param.m) + ", "
@@ -252,10 +257,10 @@ bool SortResult (const ProfResult_t& x, const ProfResult_t& y) {
     return (x.time < y.time); 
 }
 
-void PrintResult(const char dev_name[], const GemmParam_t& param,
+void PrintResult(const GemmParam_t& param,
     const std::vector<ProfResult_t>& results, int rank) {
 
-    std::string all_info = BasicGemmInfo(dev_name, param);
+    std::string all_info = BasicGemmInfo(param);
 
     float workload = (2.f * param.m * param.n * param.k) * 1e-9;
 
@@ -318,10 +323,10 @@ bool SortLtResult (const LtProfResult_t& x, const LtProfResult_t& y) {
     return (x.info.time < y.info.time); 
 }
 
-void PrintLtResult(const char dev_name[], const GemmParam_t& param,
+void PrintLtResult(const GemmParam_t& param,
     const std::vector<LtProfResult_t>& results, int rank) {
 
-    std::string all_info = BasicGemmInfo(dev_name, param);
+    std::string all_info = BasicGemmInfo(param);
 
     float workload = (2.f * param.m * param.n * param.k) * 1e-9;
 

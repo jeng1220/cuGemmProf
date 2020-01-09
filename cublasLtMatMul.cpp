@@ -522,15 +522,23 @@ LtGemmAlgoAttr_t LtGemmAlgoAttr(const cublasLtMatmulAlgo_t* algo,
     return attr;
 }
 
-std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param, bool all_algo, int loop, bool debug) {
+std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param,
+    bool all_algo, int loop, bool debug) {
+
     cublasLtHandle_t handle;
     CUBLAS_CHECK(cublasLtCreate(&handle));
 
     LtGemmParam_t lt_param = CreateLtGemmParameter(param);
 
+    int dev_id;
+    CUDA_CHECK(cudaGetDevice(&dev_id));
+    cudaDeviceProp prop;
+    CUDA_CHECK(cudaGetDeviceProperties(&prop, dev_id));
+    auto dev_cap = prop.major * 10 + prop.minor;
     bool use_imma = param.dtype.compute_type == CUDA_R_32I &&
                     param.transa == CUBLAS_OP_N &&
-                    param.transb == CUBLAS_OP_T;
+                    param.transb == CUBLAS_OP_T &&
+                    dev_cap >= 75;
 
     LtImmaParam_t imma_param;
     memset(&imma_param, 0, sizeof(LtImmaParam_t));
