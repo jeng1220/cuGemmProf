@@ -39,6 +39,7 @@ Usage:
       --all_algo         run all algorithms
   -w, --workspace arg    workspace size, unit: MiB (default: 0)
   -g, --debug            dump matrices if verification is failed
+  -r, --rank arg         only print n-th fast algorithms (default: 3)
   -h, --help             print help
 
 available combination of types:

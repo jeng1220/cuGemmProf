@@ -52,6 +52,7 @@ cxxopts::ParseResult Parse(int argc, const char* argv[]) {
         ("all_algo", "run all algorithms")
         ("w, workspace", "workspace size, unit: MiB", cxxopts::value<size_t>()->default_value("0"))
         ("g, debug", "dump matrices if verification is failed")
+        ("r, rank", "only print n-th fast algorithms", cxxopts::value<int>()->default_value("3"))
         ("h, help", "print help");
 
         auto result = options.parse(argc, (char**&)argv);
@@ -134,6 +135,7 @@ int main (int argc, const char* argv[]) {
 
     auto debug = result.count("g");
     auto loop = result["l"].as<int>();
+    auto rank = result["r"].as<int>();
     auto selected_dtypes = result["type"].as< std::vector<int> >();
 
     PrintResultTile();
@@ -192,15 +194,15 @@ int main (int argc, const char* argv[]) {
             param.dtype.compute_type);
 
         auto results = ProfileGemm(param, selected_cuda_algo, loop, debug);
-        PrintResult(prop.name, param, results);
+        PrintResult(prop.name, param, results, rank);
 
         if (prop.major > 6) {
             results = ProfileGemm(param, selected_tensor_algo, loop, debug);
-            PrintResult(prop.name, param, results);
+            PrintResult(prop.name, param, results, rank);
         }
 
         auto lt_results = ProfileLtGemm(param, run_all_algo, loop, debug);
-        PrintLtResult(prop.name, param, lt_results);
+        PrintLtResult(prop.name, param, lt_results, rank);
 
         CUDA_CHECK(cudaFree(dev_A));
         CUDA_CHECK(cudaFree(dev_B));

@@ -253,7 +253,7 @@ bool SortResult (const ProfResult_t& x, const ProfResult_t& y) {
 }
 
 void PrintResult(const char dev_name[], const GemmParam_t& param,
-    const std::vector<ProfResult_t>& results) {
+    const std::vector<ProfResult_t>& results, int rank) {
 
     std::string all_info = BasicGemmInfo(dev_name, param);
 
@@ -262,7 +262,8 @@ void PrintResult(const char dev_name[], const GemmParam_t& param,
     std::vector<ProfResult_t> order = results;
     std::sort(order.begin(), order.end(), SortResult);
 
-    for (auto result : order) {
+    for (int i = 0; i < order.size() && i < rank; ++i) {
+        auto result = order[i];
         float gflops = workload / (result.time * 1e-3);
 
         std::cout << all_info << AlgoToString(result.algo) << ", " << 
@@ -318,7 +319,7 @@ bool SortLtResult (const LtProfResult_t& x, const LtProfResult_t& y) {
 }
 
 void PrintLtResult(const char dev_name[], const GemmParam_t& param,
-    const std::vector<LtProfResult_t>& results) {
+    const std::vector<LtProfResult_t>& results, int rank) {
 
     std::string all_info = BasicGemmInfo(dev_name, param);
 
@@ -327,7 +328,8 @@ void PrintLtResult(const char dev_name[], const GemmParam_t& param,
     std::vector<LtProfResult_t> order = results;
     std::sort(order.begin(), order.end(), SortLtResult);
 
-    for (auto result : order) {
+    for (int i = 0; i < order.size() && i < rank; ++i) {
+        auto result = order[i];
         float gflops = workload / (result.info.time * 1e-3);
 
         std::cout << all_info << 

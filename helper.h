@@ -78,8 +78,8 @@ GemmDtype_t GemmDtype(int id);
 int DtypeToSize(cudaDataType_t dtype);
 void* AllocAlphaScale(cudaDataType_t dtype);
 std::string AlgoToString(cublasGemmAlgo_t algo);
-void PrintResult(const char dev_name[], const GemmParam_t& param,
-    const std::vector<ProfResult_t>& results);
 void PrintResultTile();
+void PrintResult(const char dev_name[], const GemmParam_t& param,
+    const std::vector<ProfResult_t>& results, int rank);
 void PrintLtResult(const char dev_name[], const GemmParam_t& param,
-    const std::vector<LtProfResult_t>& results);
+    const std::vector<LtProfResult_t>& results, int rank);
