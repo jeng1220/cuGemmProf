@@ -23,9 +23,12 @@
 #include <cfloat>
 #include <cstring>
 #include <iostream>
-#include <cublasLt.h>
+#include <cublas_v2.h>
 #include "macro.h"
 #include "verify.h"
+
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) >= 101
+#include <cublasLt.h>
 
 int RoundOff(int v, int d) {
    return (v + d - 1) / d * d;
@@ -584,3 +587,11 @@ std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param,
 
     return results;
 }
+#else
+std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param,
+    bool all_algo, int loop, bool debug) {
+
+    std::vector<LtProfResult_t> result;
+    return result;
+}
+#endif

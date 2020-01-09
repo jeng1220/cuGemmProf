@@ -23,9 +23,12 @@
 #include <algorithm>
 #include <iostream>
 #include <map>
-#include <cublasLt.h>
 #include <thrust/complex.h>
 #include "macro.h"
+
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) >= 101
+#include <cublasLt.h>
+#endif
 
 std::string cublasGetErrorString(cublasStatus_t err) {
     const static std::map<cublasStatus_t, std::string> kErr2Str{
@@ -114,6 +117,7 @@ std::string AlgoToString(cublasGemmAlgo_t algo) {
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO5),
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO6),
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO7),
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) >= 90
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO8),
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO9),
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO10),
@@ -124,16 +128,22 @@ std::string AlgoToString(cublasGemmAlgo_t algo) {
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO15),
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO16),
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO17),
+#endif
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) >= 92
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO18),
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO19),
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO20),
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO21),
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO22),
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO23),
+#endif
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) >= 90
         ADD_KEY_AND_STR(CUBLAS_GEMM_DEFAULT_TENSOR_OP),
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO0_TENSOR_OP),
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO1_TENSOR_OP),
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO2_TENSOR_OP),
+#endif
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) >= 92
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO3_TENSOR_OP),
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO4_TENSOR_OP),
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO5_TENSOR_OP),
@@ -147,6 +157,7 @@ std::string AlgoToString(cublasGemmAlgo_t algo) {
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO13_TENSOR_OP),
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO14_TENSOR_OP),
         ADD_KEY_AND_STR(CUBLAS_GEMM_ALGO15_TENSOR_OP)
+#endif
     };
     return kAlgo2Str.at(algo);
 }
@@ -277,6 +288,7 @@ void PrintResult(const GemmParam_t& param,
     }
 }
 
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) >= 101
 std::string TileIdToString(int id) {
     const static std::map<cublasLtMatmulTile_t, std::string> TileIdToString{
         ADD_KEY_AND_STR(CUBLASLT_MATMUL_TILE_UNDEFINED),
@@ -351,3 +363,9 @@ void PrintLtResult(const GemmParam_t& param,
             std::to_string(result.attr.wave_count) << std::endl;
     }
 }
+#else
+void PrintLtResult(const GemmParam_t& param,
+    const std::vector<LtProfResult_t>& results, int rank) {
+
+}
+#endif
