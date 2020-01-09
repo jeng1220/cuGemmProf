@@ -35,6 +35,7 @@ std::vector<cublasGemmAlgo_t> AllCudaCoreAlgo() {
         CUBLAS_GEMM_ALGO5,
         CUBLAS_GEMM_ALGO6,
         CUBLAS_GEMM_ALGO7,
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) >= 90
         CUBLAS_GEMM_ALGO8,
         CUBLAS_GEMM_ALGO9,
         CUBLAS_GEMM_ALGO10,
@@ -45,22 +46,28 @@ std::vector<cublasGemmAlgo_t> AllCudaCoreAlgo() {
         CUBLAS_GEMM_ALGO15,
         CUBLAS_GEMM_ALGO16,
         CUBLAS_GEMM_ALGO17,
+#endif
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) >= 92
         CUBLAS_GEMM_ALGO18,
         CUBLAS_GEMM_ALGO19,
         CUBLAS_GEMM_ALGO20,
         CUBLAS_GEMM_ALGO21,
         CUBLAS_GEMM_ALGO22,
         CUBLAS_GEMM_ALGO23
+#endif
     };
     return kAlgos;
 }
 
 std::vector<cublasGemmAlgo_t> AllTensorCoreAlgo() {
     const static std::vector<cublasGemmAlgo_t> kAlgos = {
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) >= 90
         CUBLAS_GEMM_DEFAULT_TENSOR_OP,
         CUBLAS_GEMM_ALGO0_TENSOR_OP,
         CUBLAS_GEMM_ALGO1_TENSOR_OP,
         CUBLAS_GEMM_ALGO2_TENSOR_OP,
+#endif
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) >= 92
         CUBLAS_GEMM_ALGO3_TENSOR_OP,
         CUBLAS_GEMM_ALGO4_TENSOR_OP,
         CUBLAS_GEMM_ALGO5_TENSOR_OP,
@@ -74,6 +81,7 @@ std::vector<cublasGemmAlgo_t> AllTensorCoreAlgo() {
         CUBLAS_GEMM_ALGO13_TENSOR_OP,
         CUBLAS_GEMM_ALGO14_TENSOR_OP,
         CUBLAS_GEMM_ALGO15_TENSOR_OP,
+#endif
     };
     return kAlgos;
 }
