@@ -95,7 +95,7 @@ LtMatrix_t CreateTransformLtMatrix(int w, int h,
                 h, w, ld));
     }
     else {
-        assert(-1);
+        assert(EXIT_FAILURE);
     }
     CUBLAS_CHECK(cublasLtMatrixLayoutSetAttribute(mat.desc,
         CUBLASLT_MATRIX_LAYOUT_ORDER, &order, sizeof(cublasLtOrder_t)));
@@ -334,7 +334,6 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
         int reduction_scheme_mask;
         int swizzling_support;
         int custom_option_max;
-        //int epilogue_mask;
         std::vector<int> tile_ids;
 
         CUBLAS_CHECK(cublasLtMatmulAlgoCapGetAttribute(&algo,
@@ -345,8 +344,6 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
             CUBLASLT_ALGO_CAP_CTA_SWIZZLING_SUPPORT, &swizzling_support, sizeof(int), nullptr));
         CUBLAS_CHECK(cublasLtMatmulAlgoCapGetAttribute(&algo,
             CUBLASLT_ALGO_CAP_CUSTOM_OPTION_MAX, &custom_option_max, sizeof(int), nullptr));
-        //CUBLAS_CHECK(cublasLtMatmulAlgoCapGetAttribute(&algo,
-        //    CUBLASLT_ALGO_CAP_EPILOGUE_MASK, &epilogue_mask, sizeof(int), nullptr));
 
         size_t size_in_bytes = 0;
         CUBLAS_CHECK(cublasLtMatmulAlgoCapGetAttribute(&algo, CUBLASLT_ALGO_CAP_TILE_IDS,
@@ -447,7 +444,7 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
 }
 
 std::vector<cublasLtMatmulHeuristicResult_t> HeuristicLtGemmAlgo(cublasLtHandle_t handle, 
-    LtGemmParam_t& lt_param, int num_algo, bool debug) {
+    LtGemmParam_t& lt_param, const LtImmaParam_t& imma_param, int num_algo, bool debug) {
 
     // optional, use heuristic approach to select best GEMM kernel,
     // but not support IMMA currently
@@ -460,10 +457,20 @@ std::vector<cublasLtMatmulHeuristicResult_t> HeuristicLtGemmAlgo(cublasLtHandle_
     int nb_result = 0;
     std::vector<cublasLtMatmulHeuristicResult_t> results(num_algo);
 
-    auto ret = cublasLtMatmulAlgoGetHeuristic(
-        handle, lt_param.op_desc, lt_param.A.desc, lt_param.B.desc,
-        lt_param.C.desc, lt_param.C.desc, preference,
-        num_algo, results.data(), &nb_result);
+    cublasStatus_t ret;
+    if (imma_param.trans_desc) {
+        ret = cublasLtMatmulAlgoGetHeuristic(
+            handle, lt_param.op_desc, 
+            imma_param.trans_A.desc, imma_param.trans_B.desc,
+            imma_param.trans_C.desc, imma_param.trans_C.desc,
+            preference, num_algo, results.data(), &nb_result);
+    }
+    else {
+        ret = cublasLtMatmulAlgoGetHeuristic(
+            handle, lt_param.op_desc, lt_param.A.desc, lt_param.B.desc,
+            lt_param.C.desc, lt_param.C.desc, preference,
+            num_algo, results.data(), &nb_result);
+    }
 
     if (nb_result > 0) {
         results.resize(nb_result);
@@ -517,7 +524,6 @@ std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param, bool all_alg
         results = ProfileAllLtGemmAlgo(handle, lt_param, imma_param, loop, debug);
     }
 
-    std::vector<cublasLtMatmulHeuristicResult_t> heuristic_results;
     auto algo_name = static_cast<cublasGemmAlgo_t>(__CUBLASLT_DEFAULT_ALG__);
     // clean up
     lt_param.algo = nullptr;
@@ -529,14 +535,13 @@ std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param, bool all_alg
     if (use_imma) {
         algo_name = static_cast<cublasGemmAlgo_t>(__CUBLASLT_DEFAULT_IMMA_ALG__);
     }
-    else {
-        heuristic_results = HeuristicLtGemmAlgo(handle, lt_param, 1, debug);
-        if (heuristic_results.size() > 0) {
-            algo_name = static_cast<cublasGemmAlgo_t>(__CUBLASLT_1ST_HEURISTIC_ALG__);
-            lt_param.algo = &heuristic_results[0].algo;
-            attr = LtGemmAlgoAttr(&heuristic_results[0].algo,
-                heuristic_results[0].workspaceSize, heuristic_results[0].wavesCount);
-        }
+
+    auto heuristic_results = HeuristicLtGemmAlgo(handle, lt_param, imma_param, 1, debug);
+    if (heuristic_results.size() > 0) {
+        algo_name = static_cast<cublasGemmAlgo_t>(__CUBLASLT_1ST_HEURISTIC_ALG__);
+        lt_param.algo = &heuristic_results[0].algo;
+        attr = LtGemmAlgoAttr(&heuristic_results[0].algo,
+            heuristic_results[0].workspaceSize, heuristic_results[0].wavesCount);
     }
 
     auto result = LtMatrixMul(handle, lt_param, imma_param,
