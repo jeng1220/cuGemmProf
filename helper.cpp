@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <iostream>
 #include <map>
+#include <cuda_fp16.h>
 #include <thrust/complex.h>
 #include "macro.h"
 
@@ -173,7 +174,7 @@ void* AllocAlphaScale(cudaDataType_t dtype) {
             *(reinterpret_cast<char*>(ptr)) = 1;
             break;
         case CUDA_R_16F:
-            *(reinterpret_cast<half*>(ptr)) = 1.f;
+            *(reinterpret_cast<half*>(ptr)) = __float2half(1.f);
             break;
         case CUDA_R_32I:
             *(reinterpret_cast<int*>(ptr)) = 1;

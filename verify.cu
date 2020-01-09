@@ -42,6 +42,18 @@ __global__ void InitMatrixKernal(void* dev_ptr, int w, int h, int ld)
     }
 }
 
+template <>
+__global__ void InitMatrixKernal<half>(void* dev_ptr, int w, int h, int ld) 
+{
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    auto ptr = reinterpret_cast<half*>(dev_ptr);
+    if (x < ld && y < h) {
+        ptr[y * ld + x] = __float2half(static_cast<float>((x < w) ?
+            (threadIdx.y * blockDim.x + threadIdx.x) : 0));
+    }
+}
+
 void InitMatrix(void* ptr, int w, int h, int ld, cudaDataType_t dtype) 
 {
     dim3 block(8, 8);
@@ -149,6 +161,75 @@ __global__ void NaiveGemmKernelNN(
             sum += static_cast<acc_t>(A[i * lda + x]) * static_cast<acc_t>(B[y * ldb + i]);
         }
         C[y * ldc + x] = static_cast<dst_t>(sum);
+    }
+}
+
+template <>
+__global__ void NaiveGemmKernelNN<half, half, half>(
+    int m, int n, int k,
+    const void* A_ptr, int lda,
+    const void* B_ptr, int ldb,
+    void* C_ptr, int ldc) 
+{
+    auto A = reinterpret_cast<const half*>(A_ptr);
+    auto B = reinterpret_cast<const half*>(B_ptr);
+    auto C = reinterpret_cast<half*>(C_ptr);
+
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    float sum = 0;
+
+    if (x < m && y < n) {
+        for (int i = 0; i < k; ++i) {
+            sum += __half2float(A[i * lda + x]) * __half2float(B[y * ldb + i]);
+        }
+        C[y * ldc + x] = __float2half(sum);
+    }
+}
+
+template <>
+__global__ void NaiveGemmKernelNN<float, half, half>(
+    int m, int n, int k,
+    const void* A_ptr, int lda,
+    const void* B_ptr, int ldb,
+    void* C_ptr, int ldc) 
+{
+    auto A = reinterpret_cast<const half*>(A_ptr);
+    auto B = reinterpret_cast<const half*>(B_ptr);
+    auto C = reinterpret_cast<half*>(C_ptr);
+
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    float sum = 0;
+
+    if (x < m && y < n) {
+        for (int i = 0; i < k; ++i) {
+            sum += __half2float(A[i * lda + x]) * __half2float(B[y * ldb + i]);
+        }
+        C[y * ldc + x] = __float2half(sum);
+    }
+}
+
+template <>
+__global__ void NaiveGemmKernelNN<float, half, float>(
+    int m, int n, int k,
+    const void* A_ptr, int lda,
+    const void* B_ptr, int ldb,
+    void* C_ptr, int ldc) 
+{
+    auto A = reinterpret_cast<const half*>(A_ptr);
+    auto B = reinterpret_cast<const half*>(B_ptr);
+    auto C = reinterpret_cast<float*>(C_ptr);
+
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    float sum = 0;
+
+    if (x < m && y < n) {
+        for (int i = 0; i < k; ++i) {
+            sum += __half2float(A[i * lda + x]) * __half2float(B[y * ldb + i]);
+        }
+        C[y * ldc + x] = sum;
     }
 }
 
@@ -285,11 +366,9 @@ bool VerifyT(const void* x_ptr, const void* y_ptr, int count) {
         x, x + count, y, init, binary_op1, binary_op2);
 
     if (static_cast<double>(result) > 1e-6) {
-        //std::cerr << "error: " << result << std::endl;
         return false;
     }
     else {
-        //std::cout << "PASSED" << std::endl;
         return true;
     }
 }
@@ -301,17 +380,22 @@ bool VerifyT<half>(const void* x_ptr, const void* y_ptr, int count) {
 
     float init = 0;
     thrust::maximum<float> binary_op1;
-    AbsMinus<half> binary_op2;
+    AbsMinus<float> binary_op2;
+
+    std::vector<float> x_f32(count);
+    std::vector<float> y_f32(count);
+    for (int i = 0; i < count; ++i) {
+        x_f32[i] = __half2float(x[i]);
+        y_f32[i] = __half2float(y[i]);
+    }
 
     auto result = thrust::inner_product(thrust::device, 
-        x, x + count, y, init, binary_op1, binary_op2);
+        x_f32.begin(), x_f32.end(), y_f32.begin(), init, binary_op1, binary_op2);
 
     if (static_cast<double>(result) > 1e-6) {
-        //std::cerr << "error: " << result << std::endl;
         return false;
     }
     else {
-        //std::cout << "PASSED" << std::endl;
         return true;
     }
 }
@@ -369,7 +453,7 @@ void PrintMatrixT<half>(const void* ptr, int w, int h, int ld)
 
     for (int y = 0; y < h; ++y) {
         for (int x = 0; x < ld; ++x) {
-            std::cout << host_ptr[y * ld + x] << ", ";
+            std::cout << __half2float(host_ptr[y * ld + x]) << ", ";
         }
         std::cout << std::endl;
     }

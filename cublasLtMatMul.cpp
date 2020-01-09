@@ -41,26 +41,26 @@ struct LtMatrix_t {
 };
 
 struct LtMatrixAttr_t {
-    long w;
-    long h;
-    long ld;
+    uint64_t w;
+    uint64_t h;
+    int64_t ld;
     cudaDataType_t dtype;
 };
 
 LtMatrixAttr_t LtMatrixAttr(const LtMatrix_t& mat) {
     LtMatrixAttr_t attr;
-    
+
     CUBLAS_CHECK(cublasLtMatrixLayoutGetAttribute(
 	    mat.desc, CUBLASLT_MATRIX_LAYOUT_ROWS,
-        &attr.w, sizeof(long), nullptr));
+        &attr.w, sizeof(uint64_t), nullptr));
 
     CUBLAS_CHECK(cublasLtMatrixLayoutGetAttribute(
 	    mat.desc, CUBLASLT_MATRIX_LAYOUT_COLS,
-        &attr.h, sizeof(long), nullptr));
+        &attr.h, sizeof(uint64_t), nullptr));
 
     CUBLAS_CHECK(cublasLtMatrixLayoutGetAttribute(
 	    mat.desc, CUBLASLT_MATRIX_LAYOUT_LD,
-        &attr.ld, sizeof(long), nullptr));
+        &attr.ld, sizeof(uint64_t), nullptr));
 
     int dtype;
     CUBLAS_CHECK(cublasLtMatrixLayoutGetAttribute(
