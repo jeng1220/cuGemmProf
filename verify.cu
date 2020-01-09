@@ -25,9 +25,11 @@
 #include <map>
 #include <cuda_fp16.h>
 #include <thrust/complex.h>
+#include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
 #include <thrust/inner_product.h>
+#include <thrust/transform.h>
 #include "helper.h"
 #include "macro.h"
 
@@ -373,6 +375,11 @@ bool VerifyT(const void* x_ptr, const void* y_ptr, int count) {
     }
 }
 
+struct HalfToFloat : public thrust::unary_function<half, float> {
+    __host__ __device__
+    float operator()(half x) { return __half2float(x); }
+};
+
 template <>
 bool VerifyT<half>(const void* x_ptr, const void* y_ptr, int count) {
     auto x = reinterpret_cast<const half*>(x_ptr);
@@ -382,15 +389,14 @@ bool VerifyT<half>(const void* x_ptr, const void* y_ptr, int count) {
     thrust::maximum<float> binary_op1;
     AbsMinus<float> binary_op2;
 
-    std::vector<float> x_f32(count);
-    std::vector<float> y_f32(count);
-    for (int i = 0; i < count; ++i) {
-        x_f32[i] = __half2float(x[i]);
-        y_f32[i] = __half2float(y[i]);
-    }
+    thrust::device_vector<float> x_fp32(count);
+    thrust::device_vector<float> y_fp32(count);
+    HalfToFloat functor;
+    thrust::transform(thrust::device, x, x + count, x_fp32.begin(), functor);
+    thrust::transform(thrust::device, y, y + count, y_fp32.begin(), functor);
 
     auto result = thrust::inner_product(thrust::device, 
-        x_f32.begin(), x_f32.end(), y_f32.begin(), init, binary_op1, binary_op2);
+        x_fp32.begin(), x_fp32.end(), y_fp32.begin(), init, binary_op1, binary_op2);
 
     if (static_cast<double>(result) > 1e-6) {
         return false;
