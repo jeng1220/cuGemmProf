@@ -103,10 +103,10 @@ std::vector<ProfResult_t> ProfileGemm(const GemmParam_t& param,
             ret = cublasGemmEx(handle,
                                param.transa, param.transb,
                                param.m, param.n, param.k,
-                               param.alpha, param.A, param.dtype.Atype, param.lda,
-                               param.B, param.dtype.Btype, param.ldb, param.beta,
-                               param.C, param.dtype.Ctype, param.ldc,
-                               param.dtype.computeType, algo);
+                               param.alpha, param.A, param.dtype.A, param.lda,
+                               param.B, param.dtype.B, param.ldb, param.beta,
+                               param.C, param.dtype.C, param.ldc,
+                               param.dtype.compute_type, algo);
             if (ret != CUBLAS_STATUS_SUCCESS) {
                 fault = true;
                 if (debug) {
@@ -121,16 +121,16 @@ std::vector<ProfResult_t> ProfileGemm(const GemmParam_t& param,
         CUDA_CHECK(cudaEventElapsedTime(&time, start, end));
 
         if (!fault) {
-            fault = !Verify(param.C, param.D, param.m * param.n, param.dtype.Ctype);
+            fault = !Verify(param.C, param.D, param.m * param.n, param.dtype.C);
             if (fault && debug) {
                 std::cerr << "cublasGemmEx" << ", " << AlgoToString(algo) << ", verification failed" << std::endl;
-                PrintMatrix(param.A, param.m, param.k, param.lda, param.dtype.Atype);
-                PrintMatrix(param.B, param.k, param.n, param.ldb, param.dtype.Btype);
-                PrintMatrix(param.C, param.m, param.n, param.ldc, param.dtype.Ctype);
-                PrintMatrix(param.D, param.m, param.n, param.ldc, param.dtype.Ctype);
+                PrintMatrix(param.A, param.m, param.k, param.lda, param.dtype.A);
+                PrintMatrix(param.B, param.k, param.n, param.ldb, param.dtype.B);
+                PrintMatrix(param.C, param.m, param.n, param.ldc, param.dtype.C);
+                PrintMatrix(param.D, param.m, param.n, param.ldc, param.dtype.C);
             }
         }
-        CUDA_CHECK(cudaMemset(param.C, 0, param.m * param.n * DtypeToSize(param.dtype.Ctype)));
+        CUDA_CHECK(cudaMemset(param.C, 0, param.m * param.n * DtypeToSize(param.dtype.C)));
 
         time = fault ? FLT_MAX : (time / loop);
         results.push_back(ProfResult_t{algo, time});

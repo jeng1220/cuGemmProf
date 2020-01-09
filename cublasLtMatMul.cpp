@@ -154,23 +154,23 @@ struct LtGemmParam_t {
 
 GemmDtype_t GemmDtype(const LtGemmParam_t& lt_param) {
     GemmDtype_t gemm_dtype;
-    gemm_dtype.Atype = LtMatrixAttr(lt_param.A).dtype;
-    gemm_dtype.Btype = LtMatrixAttr(lt_param.B).dtype;
-    gemm_dtype.Ctype = LtMatrixAttr(lt_param.C).dtype;
+    gemm_dtype.A = LtMatrixAttr(lt_param.A).dtype;
+    gemm_dtype.B = LtMatrixAttr(lt_param.B).dtype;
+    gemm_dtype.C = LtMatrixAttr(lt_param.C).dtype;
 
     int dtype;
     CUBLAS_CHECK(cublasLtMatmulDescGetAttribute(
 	    lt_param.op_desc, CUBLASLT_MATMUL_DESC_COMPUTE_TYPE,
 	    &dtype, sizeof(int), nullptr));
 
-    gemm_dtype.computeType = static_cast<cublasDataType_t>(dtype);
+    gemm_dtype.compute_type = static_cast<cublasDataType_t>(dtype);
     return gemm_dtype;
 }
 
 LtGemmParam_t CreateLtGemmParameter(const GemmParam_t& param) {
     LtGemmParam_t lt_param;
 
-    CUBLAS_CHECK(cublasLtMatmulDescCreate(&lt_param.op_desc, param.dtype.computeType));
+    CUBLAS_CHECK(cublasLtMatmulDescCreate(&lt_param.op_desc, param.dtype.compute_type));
     CUBLAS_CHECK(cublasLtMatmulDescSetAttribute(lt_param.op_desc,
         CUBLASLT_MATMUL_DESC_TRANSA, &param.transa, sizeof(cublasOperation_t)));
     CUBLAS_CHECK(cublasLtMatmulDescSetAttribute(lt_param.op_desc,
@@ -181,15 +181,15 @@ LtGemmParam_t CreateLtGemmParameter(const GemmParam_t& param) {
     lt_param.A = CreateLtMatrix(param.A,
         param.transa == CUBLAS_OP_N ? param.m : param.k,
         param.transa == CUBLAS_OP_N ? param.k : param.m,
-        param.lda, param.dtype.Atype);
+        param.lda, param.dtype.A);
     lt_param.B = CreateLtMatrix(param.B,
         param.transb == CUBLAS_OP_N ? param.k : param.n,
         param.transb == CUBLAS_OP_N ? param.n : param.k,
-        param.ldb, param.dtype.Btype);   
+        param.ldb, param.dtype.B);   
     lt_param.C = CreateLtMatrix(param.C, 
-        param.m, param.n, param.ldc, param.dtype.Ctype);
+        param.m, param.n, param.ldc, param.dtype.C);
     lt_param.D = CreateLtMatrix(param.D,
-        param.m, param.n, param.ldc, param.dtype.Ctype);
+        param.m, param.n, param.ldc, param.dtype.C);
     lt_param.workspace = param.workspace;
     lt_param.workspace_size = param.workspace_size;
     lt_param.algo = nullptr;
@@ -215,9 +215,9 @@ LtImmaParam_t CreateLtImmaParameter(cublasLtHandle_t handle,
     const GemmParam_t& param, const LtGemmParam_t& lt_param) {
 
     LtImmaParam_t imma_param;
-    imma_param.trans_A = CreateTransformLtMatrix(param.m, param.k, param.dtype.Atype, CUBLASLT_ORDER_COL32);
-    imma_param.trans_B = CreateTransformLtMatrix(param.k, param.n, param.dtype.Btype, CUBLASLT_ORDER_COL4_4R2_8C);
-    imma_param.trans_C = CreateTransformLtMatrix(param.m, param.n, param.dtype.Ctype, CUBLASLT_ORDER_COL32);
+    imma_param.trans_A = CreateTransformLtMatrix(param.m, param.k, param.dtype.A, CUBLASLT_ORDER_COL32);
+    imma_param.trans_B = CreateTransformLtMatrix(param.k, param.n, param.dtype.B, CUBLASLT_ORDER_COL4_4R2_8C);
+    imma_param.trans_C = CreateTransformLtMatrix(param.m, param.n, param.dtype.C, CUBLASLT_ORDER_COL32);
 
     CUBLAS_CHECK(cublasLtMatrixTransformDescCreate(&imma_param.trans_desc,
         CUDA_R_32F));
@@ -334,8 +334,8 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
     auto gemm_dtype = GemmDtype(lt_param);
 
     CUBLAS_CHECK(cublasLtMatmulAlgoGetIds(
-        handle, gemm_dtype.computeType, gemm_dtype.computeType,
-        gemm_dtype.Atype, gemm_dtype.Btype, gemm_dtype.Ctype, gemm_dtype.Ctype,
+        handle, gemm_dtype.compute_type, gemm_dtype.compute_type,
+        gemm_dtype.A, gemm_dtype.B, gemm_dtype.C, gemm_dtype.C,
         max_algos, algo_ids.data(), &nb_algo_id));
     algo_ids.resize(nb_algo_id);
 
@@ -346,8 +346,8 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
     for (int idx = 0; (idx < nb_algo_id) && (combine_count < max_combine_option); idx++) {
         cublasLtMatmulAlgo_t algo;
         CUBLAS_CHECK(cublasLtMatmulAlgoInit(handle, 
-            gemm_dtype.computeType, gemm_dtype.computeType, 
-            gemm_dtype.Atype, gemm_dtype.Btype, gemm_dtype.Ctype, gemm_dtype.Ctype,
+            gemm_dtype.compute_type, gemm_dtype.compute_type, 
+            gemm_dtype.A, gemm_dtype.B, gemm_dtype.C, gemm_dtype.C,
             algo_ids[idx], &algo));
  
         int splite_k_support;
@@ -528,7 +528,7 @@ std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param, bool all_alg
 
     LtGemmParam_t lt_param = CreateLtGemmParameter(param);
 
-    bool use_imma = param.dtype.computeType == CUDA_R_32I &&
+    bool use_imma = param.dtype.compute_type == CUDA_R_32I &&
                     param.transa == CUBLAS_OP_N &&
                     param.transb == CUBLAS_OP_T;
 

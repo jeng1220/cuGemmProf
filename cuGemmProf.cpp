@@ -58,7 +58,7 @@ cxxopts::ParseResult Parse(int argc, const char* argv[]) {
 
         std::string type_info;
         type_info = "available combination of types:\n"
-                    "ID, ComputeType, Atype,      Btype,      Ctype\n"
+                    "ID, ComputeType, A,      B,      C\n"
                     "0,  {CUDA_R_16F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F}\n"
                     "1,  {CUDA_R_32I, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32I}\n"
                     "2,  {CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F}\n"
@@ -143,21 +143,21 @@ int main (int argc, const char* argv[]) {
         auto dtypes = GetGemmDtype(dtype_id);
         param.dtype = dtypes;
 
-        auto src_dtype_size = DtypeToSize(dtypes.Atype);
-        auto dst_dtype_size = DtypeToSize(dtypes.Ctype);
+        auto src_dtype_size = DtypeToSize(dtypes.A);
+        auto dst_dtype_size = DtypeToSize(dtypes.C);
 
         void* dev_A;
         CUDA_CHECK(cudaMalloc(&dev_A, param.m * param.k * src_dtype_size));
         InitMatrix(dev_A,
             (param.transa == CUBLAS_OP_N) ? param.m : param.k,
             (param.transa == CUBLAS_OP_N) ? param.k : param.m,
-            param.lda, param.dtype.Atype);
+            param.lda, param.dtype.A);
         void* dev_B;
         CUDA_CHECK(cudaMalloc(&dev_B, param.k * param.n * src_dtype_size));
         InitMatrix(dev_B,
             (param.transb == CUBLAS_OP_N) ? param.k : param.n,
             (param.transb == CUBLAS_OP_N) ? param.n : param.k,
-            param.ldb, param.dtype.Btype);
+            param.ldb, param.dtype.B);
         void* dev_C;
         CUDA_CHECK(cudaMalloc(&dev_C, param.m * param.n * dst_dtype_size));
         CUDA_CHECK(cudaMemset(dev_C, 0, param.m * param.n * dst_dtype_size));
@@ -170,10 +170,10 @@ int main (int argc, const char* argv[]) {
         param.C = dev_C;
         param.D = dev_D;
 
-        auto compute_dtype_size = DtypeToSize(dtypes.computeType);
+        auto compute_dtype_size = DtypeToSize(dtypes.compute_type);
  
         void* host_alpha;
-        host_alpha = AllocAlphaScale(dtypes.computeType);
+        host_alpha = AllocAlphaScale(dtypes.compute_type);
 
         void* host_beta;
         host_beta = malloc(compute_dtype_size);
@@ -186,10 +186,10 @@ int main (int argc, const char* argv[]) {
             param.transa,
             param.transb,
             param.m, param.n, param.k,
-            param.A, param.dtype.Atype, param.lda,
-            param.B, param.dtype.Btype, param.ldb,
-            param.D, param.dtype.Ctype, param.ldc,
-            param.dtype.computeType);
+            param.A, param.dtype.A, param.lda,
+            param.B, param.dtype.B, param.ldb,
+            param.D, param.dtype.C, param.ldc,
+            param.dtype.compute_type);
 
         auto results = ProfileGemm(param, selected_cuda_algo, loop, debug);
         PrintResult(prop.name, param, results);

@@ -217,15 +217,15 @@ std::string TensorCoreRestrictions(const GemmParam_t& param) {
     mask[2] = reinterpret_cast<intptr_t>(param.A) % 16 == 0;
     mask[3] = reinterpret_cast<intptr_t>(param.B) % 16 == 0;
     mask[4] = reinterpret_cast<intptr_t>(param.C) % 16 == 0;
-    mask[5] = param.lda % (16 / DtypeToSize(param.dtype.Atype)) == 0;
-    mask[6] = param.ldb % (16 / DtypeToSize(param.dtype.Btype)) == 0;
-    mask[7] = param.ldc % (16 / DtypeToSize(param.dtype.Ctype)) == 0;
+    mask[5] = param.lda % (16 / DtypeToSize(param.dtype.A)) == 0;
+    mask[6] = param.ldb % (16 / DtypeToSize(param.dtype.B)) == 0;
+    mask[7] = param.ldc % (16 / DtypeToSize(param.dtype.C)) == 0;
     return Mask2Str(mask);
 }
 
 void PrintResultTile() {
     std::cout << "Device, Op(A), Op(B), "
-        "M, N, K, ComputeType, Atype, Btype, Ctype, "
+        "M, N, K, ComputeType, A, B, C, "
         "DP4A.Restrictions(lda.ldb), TensorCoreRestrictions(m.k.A.B.C.lda.ldb.ldc), "
         "Algo, Time(ms), GFLOPS, "
         "LtAlgoId, TileId, SpliteK, Red.Sch, Swizzle, CustomId, WorkSpaceSize, WaveCount" << std::endl;
@@ -239,10 +239,10 @@ std::string BasicGemmInfo(const char dev_name[], const GemmParam_t& param) {
         + std::to_string(param.m) + ", "
         + std::to_string(param.n) + ", "
         + std::to_string(param.k) + ", "
-        + DtypeToString(param.dtype.computeType) + ", "
-        + DtypeToString(param.dtype.Atype) + ", "
-        + DtypeToString(param.dtype.Btype) + ", "
-        + DtypeToString(param.dtype.Ctype) + ", "
+        + DtypeToString(param.dtype.compute_type) + ", "
+        + DtypeToString(param.dtype.A) + ", "
+        + DtypeToString(param.dtype.B) + ", "
+        + DtypeToString(param.dtype.C) + ", "
         + Dp4aRestrictions(param)
         + TensorCoreRestrictions(param);
     return info;

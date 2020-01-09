@@ -26,10 +26,10 @@
 std::string cublasGetErrorString(cublasStatus_t err);
 
 struct GemmDtype_t {
-    cudaDataType_t computeType;
-    cudaDataType_t Atype;
-    cudaDataType_t Btype;
-    cudaDataType_t Ctype;
+    cudaDataType_t compute_type;
+    cudaDataType_t A;
+    cudaDataType_t B;
+    cudaDataType_t C;
 };
 
 struct GemmParam_t {

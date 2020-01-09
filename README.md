@@ -42,7 +42,7 @@ Usage:
   -h, --help             print help
 
 available combination of types:
-ID, ComputeType, Atype,      Btype,      Ctype
+ID, ComputeType, A,      B,      C
 0,  {CUDA_R_16F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F}
 1,  {CUDA_R_32I, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32I}
 2,  {CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F}
