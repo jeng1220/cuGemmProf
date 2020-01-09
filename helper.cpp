@@ -99,6 +99,9 @@ std::string DtypeToString(cudaDataType_t dtype) {
 }
 
 std::string AlgoToString(cublasGemmAlgo_t algo) {
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) < 90
+    const cublasGemmAlgo_t CUBLAS_GEMM_DEFAULT = CUBLAS_GEMM_DFALT;
+#endif
     const cublasGemmAlgo_t CUBLASLT_DEFAULT_ALG = static_cast<cublasGemmAlgo_t>(__CUBLASLT_DEFAULT_ALG__);
     const cublasGemmAlgo_t CUBLASLT_DEFAULT_IMMA_ALG = static_cast<cublasGemmAlgo_t>(__CUBLASLT_DEFAULT_IMMA_ALG__);
     const cublasGemmAlgo_t CUBLASLT_1ST_HEURISTIC_ALG = static_cast<cublasGemmAlgo_t>(__CUBLASLT_1ST_HEURISTIC_ALG__);

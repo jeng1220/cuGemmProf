@@ -105,6 +105,7 @@ int main (int argc, const char* argv[]) {
 #if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) < 90
     const cublasGemmAlgo_t CUBLAS_GEMM_DEFAULT = CUBLAS_GEMM_DFALT;
     const cublasGemmAlgo_t CUBLAS_GEMM_DEFAULT_TENSOR_OP = CUBLAS_GEMM_DFALT;
+    const cublasGemmAlgo_t CUBLAS_GEMM_ALGO0_TENSOR_OP = CUBLAS_GEMM_DFALT;
 #endif
     std::vector<cublasGemmAlgo_t> selected_cuda_algo{CUBLAS_GEMM_DEFAULT};
     std::vector<cublasGemmAlgo_t> selected_tensor_algo{CUBLAS_GEMM_DEFAULT_TENSOR_OP};

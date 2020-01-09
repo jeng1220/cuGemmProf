@@ -25,6 +25,9 @@
 #include "verify.h"
 
 std::vector<cublasGemmAlgo_t> AllCudaCoreAlgo() {
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) < 90
+    const cublasGemmAlgo_t CUBLAS_GEMM_DEFAULT = CUBLAS_GEMM_DFALT;
+#endif
     const static std::vector<cublasGemmAlgo_t> kAlgos{
         CUBLAS_GEMM_DEFAULT,
         CUBLAS_GEMM_ALGO0,
