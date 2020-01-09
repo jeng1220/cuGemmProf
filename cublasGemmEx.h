@@ -19,10 +19,9 @@
 */
 
 #pragma once
-#include "helper.h"
-#include <cublas_v2.h>
-#include <string>
 #include <vector>
+#include <cublas_v2.h>
+#include "helper.h"
 
 std::vector<cublasGemmAlgo_t> AllCudaCoreAlgo();
 std::vector<cublasGemmAlgo_t> AllTensorCoreAlgo();

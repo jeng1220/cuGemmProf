@@ -19,10 +19,10 @@
 */
 
 #include "cublasGemmEx.h"
+#include <cfloat>
+#include <iostream>
 #include "macro.h"
 #include "verify.h"
-#include <algorithm>
-#include <cfloat>
 
 std::vector<cublasGemmAlgo_t> AllCudaCoreAlgo() {
     const static std::vector<cublasGemmAlgo_t> kAlgos{

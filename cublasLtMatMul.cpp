@@ -19,13 +19,13 @@
 */
 
 #include "cublasLtMatMul.h"
-#include "macro.h"
-#include "verify.h"
-#include <cublasLt.h>
-#include <vector>
 #include <cassert>
 #include <cfloat>
 #include <cstring>
+#include <iostream>
+#include <cublasLt.h>
+#include "macro.h"
+#include "verify.h"
 
 int RoundOff(int v, int d) {
    return (v + d - 1) / d * d;

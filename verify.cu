@@ -18,19 +18,18 @@
 * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-#include "macro.h"
-#include "helper.h"
 #include "verify.h"
+#include <cassert>
+#include <cstdlib>
+#include <iostream>
+#include <map>
+#include <cuda_fp16.h>
 #include <thrust/complex.h>
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
 #include <thrust/inner_product.h>
-#include <cuda_fp16.h>
-#include <iostream>
-#include <map>
-#include <cstdlib>
-#include <cstdio>
-#include <cassert>
+#include "helper.h"
+#include "macro.h"
 
 template <typename data_t>
 __global__ void InitMatrixKernal(void* dev_ptr, int w, int h, int ld) 

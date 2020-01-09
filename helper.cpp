@@ -19,13 +19,13 @@
 */
 
 #include "helper.h"
-#include "macro.h"
+#include <cassert>
+#include <algorithm>
+#include <iostream>
+#include <map>
 #include <cublasLt.h>
 #include <thrust/complex.h>
-#include <algorithm>
-#include <map>
-#include <vector>
-#include <cassert>
+#include "macro.h"
 
 std::string cublasGetErrorString(cublasStatus_t err) {
     const static std::map<cublasStatus_t, std::string> kErr2Str{

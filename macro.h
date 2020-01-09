@@ -19,8 +19,8 @@
 */
 
 #pragma once
-#include "helper.h"
 #include <cuda_runtime.h>
+#include "helper.h"
 
 #define ADD_KEY_AND_STR(x) {x, #x}
 

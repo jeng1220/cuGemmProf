@@ -19,10 +19,9 @@
 */
 
 #pragma once
-#include <cublas_v2.h>
-#include <iostream>
 #include <string>
 #include <vector>
+#include <cublas_v2.h>
 
 std::string cublasGetErrorString(cublasStatus_t err);
 
