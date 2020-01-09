@@ -179,14 +179,23 @@ __global__ void NaiveGemmKernelNN<half, half, half>(
 
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
+#if __CUDA_ARCH__ >= 530
+    half sum = 0;
+    if (x < m && y < n) {
+        for (int i = 0; i < k; ++i) {
+            sum = __hfma(A[i * lda + x], B[y * ldb + i], sum);
+        }
+        C[y * ldc + x] = sum;
+    }
+#else
     float sum = 0;
-
     if (x < m && y < n) {
         for (int i = 0; i < k; ++i) {
             sum += __half2float(A[i * lda + x]) * __half2float(B[y * ldb + i]);
         }
         C[y * ldc + x] = __float2half(sum);
     }
+#endif
 }
 
 template <>
