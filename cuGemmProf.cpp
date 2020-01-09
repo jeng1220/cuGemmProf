@@ -51,7 +51,7 @@ cxxopts::ParseResult Parse(int argc, const char* argv[]) {
 
         std::string type_info;
         type_info = "available combination of types:\n"
-                    "ID, ComputeType, A,      B,      C\n"
+                    "ID, ComputeType, A,          B,          C\n"
                     "0,  {CUDA_R_16F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F}\n"
                     "1,  {CUDA_R_32I, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32I}\n"
                     "2,  {CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F}\n"
