@@ -18,18 +18,10 @@
 * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-#include <cublas_v2.h>
-#include <cublasLt.h>
+#include "cuGemmProf.h"
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
-#include <string>
 #include <cxxopts.hpp>
-#include "cublasGemmEx.h"
-#include "cublasLtMatMul.h"
-#include "helper.h"
-#include "macro.h"
-#include "verify.h"
 
 cxxopts::ParseResult Parse(int argc, const char* argv[]) {
     try {
