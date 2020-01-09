@@ -116,6 +116,8 @@ int main (int argc, const char* argv[]) {
     auto loop = result["l"].as<int>();
     auto selected_dtypes = result["type"].as< std::vector<int> >();
 
+    PrintResultTile();
+
     for (auto dtype_id : selected_dtypes) {
 
         auto dtypes = GetGemmDtype(dtype_id);

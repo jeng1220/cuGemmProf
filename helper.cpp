@@ -203,19 +203,17 @@ std::string TensorCoreRestrictions(const GemmParam_t& param) {
     return Mask2Str(mask);
 }
 
-bool SortResult (const ProfResult_t& x, const ProfResult_t& y) { 
-    return (x.time < y.time); 
+void PrintResultTile() {
+    std::cout << "Device, Op(A), Op(B), "
+        "M, N, K, ComputeType, Atype, Btype, Ctype, "
+        "DP4A.Restrictions(lda.ldb), TensorCoreRestrictions(m.k.A.B.C.lda.ldb.ldc), "
+        "Algo, Time(ms), GFLOPS, "
+        "LtAlgoId, TileId, SpliteK, Red.Sch, Swizzle, CustomId, WorkSpaceSize, WaveCount" << std::endl;
 }
 
-void PrintResult(const char dev_name[], const GemmParam_t& param,
-    const std::vector<ProfResult_t>& results) {
-    std::cout << "device, op(A), op(B), "
-        "m, n, k, ComputeType, Atype, Btype, Ctype, "
-        "Dp4aRestrictions(lda.ldb), TensorCoreRestrictions(m.k.A.B.C.lda.ldb.ldc), "
-        "algo, time(ms), GFLOPS" << std::endl;
-
-    std::string all_info;
-    all_info = std::string(dev_name) + ", "
+std::string BasicGemmInfo(const char dev_name[], const GemmParam_t& param) {
+    std::string info;
+    info = std::string(dev_name) + ", "
         + OperationToString(param.transa) + ", "
         + OperationToString(param.transb) + ", "
         + std::to_string(param.m) + ", "
@@ -224,10 +222,20 @@ void PrintResult(const char dev_name[], const GemmParam_t& param,
         + DtypeToString(param.dtype.computeType) + ", "
         + DtypeToString(param.dtype.Atype) + ", "
         + DtypeToString(param.dtype.Btype) + ", "
-        + DtypeToString(param.dtype.Ctype) + ", ";
+        + DtypeToString(param.dtype.Ctype) + ", "
+        + Dp4aRestrictions(param)
+        + TensorCoreRestrictions(param);
+    return info;
+}
 
-    all_info += Dp4aRestrictions(param);
-    all_info += TensorCoreRestrictions(param);
+bool SortResult (const ProfResult_t& x, const ProfResult_t& y) { 
+    return (x.time < y.time); 
+}
+
+void PrintResult(const char dev_name[], const GemmParam_t& param,
+    const std::vector<ProfResult_t>& results) {
+
+    std::string all_info = BasicGemmInfo(dev_name, param);
 
     float workload = (2.f * param.m * param.n * param.k) * 1e-9;
 
@@ -237,7 +245,7 @@ void PrintResult(const char dev_name[], const GemmParam_t& param,
     for (auto result : order) {
         float gflops = workload / (result.time * 1e-3);
 
-        std::cout << all_info << result.algo << ", " << 
+        std::cout << all_info << AlgoToString(result.algo) << ", " << 
             (result.time == FLT_MAX ? NAN : result.time) << ", " <<
             (result.time == FLT_MAX ? NAN : gflops) << std::endl;
     }
@@ -291,26 +299,8 @@ bool SortLtResult (const LtProfResult_t& x, const LtProfResult_t& y) {
 
 void PrintLtResult(const char dev_name[], const GemmParam_t& param,
     const std::vector<LtProfResult_t>& results) {
-    std::cout << "device, op(A), op(B), "
-        "m, n, k, ComputeType, Atype, Btype, Ctype, "
-        "Dp4aRestrictions(lda.ldb), TensorCoreRestrictions(m.k.A.B.C.lda.ldb.ldc), "
-        "algo, time(ms), GFLOPS, "
-        "LtAlgoId, TileId, SpliteK, Red.Sch, Swizzle, CustomId, WorkSpaceSize, WaveCount" << std::endl;
 
-    std::string all_info;
-    all_info = std::string(dev_name) + ", "
-        + OperationToString(param.transa) + ", "
-        + OperationToString(param.transb) + ", "
-        + std::to_string(param.m) + ", "
-        + std::to_string(param.n) + ", "
-        + std::to_string(param.k) + ", "
-        + DtypeToString(param.dtype.computeType) + ", "
-        + DtypeToString(param.dtype.Atype) + ", "
-        + DtypeToString(param.dtype.Btype) + ", "
-        + DtypeToString(param.dtype.Ctype) + ", ";
-
-    all_info += Dp4aRestrictions(param);
-    all_info += TensorCoreRestrictions(param);
+    std::string all_info = BasicGemmInfo(dev_name, param);
 
     float workload = (2.f * param.m * param.n * param.k) * 1e-9;
 
@@ -323,20 +313,14 @@ void PrintLtResult(const char dev_name[], const GemmParam_t& param,
         std::cout << all_info << 
             AlgoToString(result.info.algo) << ", " << 
             (result.info.time == FLT_MAX ? NAN : result.info.time) << ", " <<
-            (result.info.time == FLT_MAX ? NAN : gflops) << ", ";
-
-        if (result.attr.wave_count != 0.f) {
-            std::cout << std::to_string(result.attr.algo_id) << ", " <<
-                TileIdToString(result.attr.tile_id) << ", " <<
-                std::to_string(result.attr.splite_k) << ", " << 
-                ReductionSchemeToString(result.attr.reduction_scheme) << ", " <<
-                std::to_string(result.attr.swizzle) << ", " <<
-                std::to_string(result.attr.custom_option) << ", " <<
-                std::to_string(result.attr.workspace_size) << ", " <<
-                std::to_string(result.attr.wave_count) << std::endl;
-        }
-        else {
-            std::cout << "NA" << std::endl;
-        }
+            (result.info.time == FLT_MAX ? NAN : gflops) << ", " << 
+            std::to_string(result.attr.algo_id) << ", " <<
+            TileIdToString(result.attr.tile_id) << ", " <<
+            std::to_string(result.attr.splite_k) << ", " << 
+            ReductionSchemeToString(result.attr.reduction_scheme) << ", " <<
+            std::to_string(result.attr.swizzle) << ", " <<
+            std::to_string(result.attr.custom_option) << ", " <<
+            std::to_string(result.attr.workspace_size) << ", " <<
+            std::to_string(result.attr.wave_count) << std::endl;
     }
 }
