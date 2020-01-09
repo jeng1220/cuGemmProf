@@ -43,7 +43,7 @@ std::string cublasGetErrorString(cublasStatus_t err) {
     return kErr2Str.at(err);
 }
 
-GemmDtype_t GetGemmDtype(int id) {
+GemmDtype_t GemmDtype(int id) {
     const static std::vector<GemmDtype_t> kGemmDtypes{
         GemmDtype_t{CUDA_R_16F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F},
         GemmDtype_t{CUDA_R_32I, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32I},

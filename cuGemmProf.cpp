@@ -140,11 +140,11 @@ int main (int argc, const char* argv[]) {
 
     for (auto dtype_id : selected_dtypes) {
 
-        auto dtypes = GetGemmDtype(dtype_id);
-        param.dtype = dtypes;
+        auto gemm_dtype = GemmDtype(dtype_id);
+        param.dtype = gemm_dtype;
 
-        auto src_dtype_size = DtypeToSize(dtypes.A);
-        auto dst_dtype_size = DtypeToSize(dtypes.C);
+        auto src_dtype_size = DtypeToSize(gemm_dtype.A);
+        auto dst_dtype_size = DtypeToSize(gemm_dtype.C);
 
         void* dev_A;
         CUDA_CHECK(cudaMalloc(&dev_A, param.m * param.k * src_dtype_size));
@@ -170,10 +170,10 @@ int main (int argc, const char* argv[]) {
         param.C = dev_C;
         param.D = dev_D;
 
-        auto compute_dtype_size = DtypeToSize(dtypes.compute_type);
+        auto compute_dtype_size = DtypeToSize(gemm_dtype.compute_type);
  
         void* host_alpha;
-        host_alpha = AllocAlphaScale(dtypes.compute_type);
+        host_alpha = AllocAlphaScale(gemm_dtype.compute_type);
 
         void* host_beta;
         host_beta = malloc(compute_dtype_size);
