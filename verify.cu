@@ -29,6 +29,7 @@
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
 #include <thrust/inner_product.h>
+#include <thrust/iterator/zip_iterator.h>
 #include <thrust/transform.h>
 #include "helper.h"
 #include "macro.h"
@@ -50,9 +51,10 @@ __global__ void InitMatrixKernal<half>(void* dev_ptr, int w, int h, int ld)
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
     auto ptr = reinterpret_cast<half*>(dev_ptr);
+    int max = blockDim.x * blockDim.y;
+    float v = static_cast<float>(threadIdx.y * blockDim.x + threadIdx.x) / max;
     if (x < ld && y < h) {
-        ptr[y * ld + x] = __float2half(static_cast<float>((x < w) ?
-            (threadIdx.y * blockDim.x + threadIdx.x) : 0));
+        ptr[y * ld + x] = __float2half((x < w) ? v : 0.f);
     }
 }
 
@@ -62,6 +64,10 @@ void InitMatrix(void* ptr, int w, int h, int ld, cudaDataType_t dtype)
     dim3 grid;
     grid.x = (ld + block.x - 1) / block.x;
     grid.y = ( h + block.y - 1) / block.y;
+
+    if (dtype == CUDA_C_8I || dtype == CUDA_C_32F || dtype == CUDA_C_64F) {
+        grid.x = (2 * ld + block.x - 1) / block.x;
+    }
 
     switch (dtype) {
 
@@ -167,38 +173,6 @@ __global__ void NaiveGemmKernelNN(
 }
 
 template <>
-__global__ void NaiveGemmKernelNN<half, half, half>(
-    int m, int n, int k,
-    const void* A_ptr, int lda,
-    const void* B_ptr, int ldb,
-    void* C_ptr, int ldc) 
-{
-    auto A = reinterpret_cast<const half*>(A_ptr);
-    auto B = reinterpret_cast<const half*>(B_ptr);
-    auto C = reinterpret_cast<half*>(C_ptr);
-
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
-#if __CUDA_ARCH__ >= 530
-    half sum = 0;
-    if (x < m && y < n) {
-        for (int i = 0; i < k; ++i) {
-            sum = __hfma(A[i * lda + x], B[y * ldb + i], sum);
-        }
-        C[y * ldc + x] = sum;
-    }
-#else
-    float sum = 0;
-    if (x < m && y < n) {
-        for (int i = 0; i < k; ++i) {
-            sum += __half2float(A[i * lda + x]) * __half2float(B[y * ldb + i]);
-        }
-        C[y * ldc + x] = __float2half(sum);
-    }
-#endif
-}
-
-template <>
 __global__ void NaiveGemmKernelNN<float, half, half>(
     int m, int n, int k,
     const void* A_ptr, int lda,
@@ -258,7 +232,7 @@ void NaiveGemmNN(
     grid.y = (n + block.y - 1) / block.y;
     switch (gemm_type) {
         case 0: // CUDA_R_16F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F
-            NaiveGemmKernelNN<half, half, half><<<grid, block>>>(m, n, k,
+            NaiveGemmKernelNN<float, half, half><<<grid, block>>>(m, n, k,
                 A, lda, B, ldb, C, ldc);
             break;
         case 1: // CUDA_R_32I, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32I
@@ -394,20 +368,27 @@ bool VerifyT<half>(const void* x_ptr, const void* y_ptr, int count) {
     auto x = reinterpret_cast<const half*>(x_ptr);
     auto y = reinterpret_cast<const half*>(y_ptr);
 
-    float init = 0;
-    thrust::maximum<float> binary_op1;
-    AbsMinus<float> binary_op2;
-
     thrust::device_vector<float> x_fp32(count);
     thrust::device_vector<float> y_fp32(count);
+    thrust::device_vector<float> diff(count);
     HalfToFloat functor;
     thrust::transform(thrust::device, x, x + count, x_fp32.begin(), functor);
     thrust::transform(thrust::device, y, y + count, y_fp32.begin(), functor);
 
-    auto result = thrust::inner_product(thrust::device, 
-        x_fp32.begin(), x_fp32.end(), y_fp32.begin(), init, binary_op1, binary_op2);
+    AbsMinus<float> abs_minus_functor;
+    thrust::transform(thrust::device, x_fp32.begin(), x_fp32.end(),
+        y_fp32.begin(), diff.begin(), abs_minus_functor);
 
-    if (static_cast<double>(result) > 1e-6) {
+    auto first = thrust::make_zip_iterator(thrust::make_tuple(diff.begin(), y_fp32.begin()));
+    auto last  = thrust::make_zip_iterator(thrust::make_tuple(diff.end(),   y_fp32.end()));
+
+    thrust::maximum< thrust::tuple<float, float> > max_functor;
+    thrust::tuple<float, float> init = first[0];
+    auto result = thrust::reduce(first, last, init, max_functor);
+    auto max_diff = thrust::get<0>(result);
+    auto max_value = thrust::get<1>(result);
+
+    if (static_cast<double>(max_diff / max_value) > 1e-3) {
         return false;
     }
     else {
