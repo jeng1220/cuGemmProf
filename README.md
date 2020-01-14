@@ -40,6 +40,7 @@ Usage:
   -w, --workspace arg    workspace size, unit: MiB (default: 0)
   -g, --debug            dump matrices if verification is failed
   -r, --rank arg         only print n-th fast algorithms (default: 3)
+  -t, --threshold arg    threshold of relative error (default: 0.01)
   -h, --help             print help
 
 available combination of types:
