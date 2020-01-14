@@ -90,7 +90,7 @@ std::vector<cublasGemmAlgo_t> AllTensorCoreAlgo() {
 }
 
 std::vector<ProfResult_t> ProfileGemm(const GemmParam_t& param,
-    const std::vector<cublasGemmAlgo_t>& algos, int loop, bool debug) {
+    const std::vector<cublasGemmAlgo_t>& algos, int loop, double threshold, bool debug) {
 
     cublasHandle_t handle;
     CUBLAS_CHECK(cublasCreate(&handle));
@@ -132,7 +132,8 @@ std::vector<ProfResult_t> ProfileGemm(const GemmParam_t& param,
         CUDA_CHECK(cudaEventElapsedTime(&time, start, end));
 
         if (!fault) {
-            fault = !Verify(param.C, param.D, param.m * param.n, param.dtype.C);
+            auto relative_err = Verify(param.C, param.D, param.m * param.n, param.dtype.C);
+            if (relative_err > threshold) fault = true;
             if (fault && debug) {
                 std::cerr << "cublasGemmEx" << ", " << AlgoToString(algo) << ", verification failed" << std::endl;
                 PrintMatrix(param.A, param.m, param.k, param.lda, param.dtype.A);

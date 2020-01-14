@@ -245,7 +245,7 @@ void PrintMatrix(LtMatrix_t mat) {
 }
 
 ProfResult_t LtMatrixMul(cublasLtHandle_t handle, LtGemmParam_t& lt_param,
-    const LtImmaParam_t& imma_param, int loop, bool debug,
+    const LtImmaParam_t& imma_param, int loop, double threshold, bool debug,
     cublasGemmAlgo_t algo_name)
 {
     cudaEvent_t start;
@@ -307,7 +307,9 @@ ProfResult_t LtMatrixMul(cublasLtHandle_t handle, LtGemmParam_t& lt_param,
     }
 
     if (!fault) {
-        fault = !Verify(lt_param.C.ptr, lt_param.D.ptr, LtMatrixCount(lt_param.C), LtMatrixDtype(lt_param.C));
+        auto relative_err = Verify(lt_param.C.ptr, lt_param.D.ptr,
+            LtMatrixCount(lt_param.C), LtMatrixDtype(lt_param.C));
+        if (relative_err > threshold) fault = true;
         if (fault && debug) {
             std::cerr << "cublasLtMatmul verification failed" << std::endl;
             PrintMatrix(lt_param.A);
@@ -328,7 +330,7 @@ ProfResult_t LtMatrixMul(cublasLtHandle_t handle, LtGemmParam_t& lt_param,
 }
 
 std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
-    LtGemmParam_t& lt_param, const LtImmaParam_t& imma_param, int loop, bool debug) {
+    LtGemmParam_t& lt_param, const LtImmaParam_t& imma_param, int loop, double threshold, bool debug) {
 
     const int max_algos = 40;
     std::vector<int> algo_ids(max_algos);
@@ -443,7 +445,7 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
                                 lt_param.algo = &algo;
 
                                 auto result = LtMatrixMul(handle,
-                                    lt_param, imma_param, loop, debug, 
+                                    lt_param, imma_param, loop, threshold, debug, 
                                     static_cast<cublasGemmAlgo_t>(__CUBLASLT_ALL_ALG__));
 
                                 LtGemmAlgoAttr_t attr{idx, tile_id, splite_k, reduction, s, c,
@@ -526,7 +528,7 @@ LtGemmAlgoAttr_t LtGemmAlgoAttr(const cublasLtMatmulAlgo_t* algo,
 }
 
 std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param,
-    bool all_algo, int loop, bool debug) {
+    bool all_algo, int loop, double threshold, bool debug) {
 
     cublasLtHandle_t handle;
     CUBLAS_CHECK(cublasLtCreate(&handle));
@@ -552,7 +554,7 @@ std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param,
 
     std::vector<LtProfResult_t> results;
     if (all_algo) {
-        results = ProfileAllLtGemmAlgo(handle, lt_param, imma_param, loop, debug);
+        results = ProfileAllLtGemmAlgo(handle, lt_param, imma_param, loop, threshold, debug);
     }
 
     auto algo_name = static_cast<cublasGemmAlgo_t>(__CUBLASLT_DEFAULT_ALG__);
@@ -576,7 +578,7 @@ std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param,
     }
 
     auto result = LtMatrixMul(handle, lt_param, imma_param,
-        loop, debug, algo_name);
+        loop, threshold, debug, algo_name);
     results.push_back(LtProfResult_t{attr, result});
 
     if (use_imma) {

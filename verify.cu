@@ -339,23 +339,25 @@ struct AbsMinus {
 };
 
 template <typename T>
-bool VerifyT(const void* x_ptr, const void* y_ptr, int count) {
+double VerifyT(const void* x_ptr, const void* y_ptr, int count) {
     auto x = reinterpret_cast<const T*>(x_ptr);
     auto y = reinterpret_cast<const T*>(y_ptr);
 
-    T init = 0;
-    thrust::maximum<T> binary_op1;
-    AbsMinus<T> binary_op2;
+    thrust::device_vector<T> diff(count);
+    AbsMinus<T> abs_minus_functor;
+    thrust::transform(thrust::device, x, x + count,
+        y, diff.begin(), abs_minus_functor);
 
-    auto result = thrust::inner_product(thrust::device, 
-        x, x + count, y, init, binary_op1, binary_op2);
+    auto first = thrust::make_zip_iterator(thrust::make_tuple(diff.begin(), y));
+    auto last  = thrust::make_zip_iterator(thrust::make_tuple(diff.end(),   y + count));
 
-    if (static_cast<double>(result) > 1e-6) {
-        return false;
-    }
-    else {
-        return true;
-    }
+    thrust::maximum< thrust::tuple<T, T> > max_functor;
+    thrust::tuple<T, T> init(-1, -1);
+    auto result = thrust::reduce(thrust::device, first, last, init, max_functor);
+    auto max_diff = thrust::get<0>(result);
+    auto max_value = thrust::get<1>(result);
+
+    return static_cast<double>(max_diff) / max_value;
 }
 
 struct HalfToFloat : public thrust::unary_function<half, float> {
@@ -364,7 +366,7 @@ struct HalfToFloat : public thrust::unary_function<half, float> {
 };
 
 template <>
-bool VerifyT<half>(const void* x_ptr, const void* y_ptr, int count) {
+double VerifyT<half>(const void* x_ptr, const void* y_ptr, int count) {
     auto x = reinterpret_cast<const half*>(x_ptr);
     auto y = reinterpret_cast<const half*>(y_ptr);
 
@@ -383,17 +385,12 @@ bool VerifyT<half>(const void* x_ptr, const void* y_ptr, int count) {
     auto last  = thrust::make_zip_iterator(thrust::make_tuple(diff.end(),   y_fp32.end()));
 
     thrust::maximum< thrust::tuple<float, float> > max_functor;
-    thrust::tuple<float, float> init = first[0];
+    thrust::tuple<float, float> init(-1.f, -1.f);
     auto result = thrust::reduce(first, last, init, max_functor);
     auto max_diff = thrust::get<0>(result);
     auto max_value = thrust::get<1>(result);
 
-    if (static_cast<double>(max_diff / max_value) > 1e-3) {
-        return false;
-    }
-    else {
-        return true;
-    }
+    return static_cast<double>(max_diff) / max_value;
 }
 
 std::ostream& operator<<(std::ostream& os, const half& x) {
@@ -401,7 +398,7 @@ std::ostream& operator<<(std::ostream& os, const half& x) {
     return os;
 }
 
-bool Verify(const void* x, const void* y, int count, cudaDataType_t dtype) {
+double Verify(const void* x, const void* y, int count, cudaDataType_t dtype) {
     switch (dtype) {
         case CUDA_R_16F:
             return VerifyT<half>(x, y, count);
@@ -418,7 +415,7 @@ bool Verify(const void* x, const void* y, int count, cudaDataType_t dtype) {
         default:
             assert(false);
     }
-    return false;
+    return std::numeric_limits<double>::max();
 }
 
 template <typename data_t>

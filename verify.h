@@ -30,6 +30,6 @@ void NaiveGemm(
     const void* B, cudaDataType_t b_type, int ldb,
     void* C, cudaDataType_t c_type, int ldc,
     cudaDataType_t compute_type);
-bool Verify(const void* x, const void* y, int count, cudaDataType_t dtype);
+double Verify(const void* x, const void* y, int count, cudaDataType_t dtype);
 void PrintMatrix(const void* dev_ptr, int w, int h,
     int ld, cudaDataType_t dtype);

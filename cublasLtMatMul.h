@@ -22,4 +22,5 @@
 #include <vector>
 #include "helper.h"
 
-std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param, bool all_algo, int loop, bool debug);
+std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param, bool all_algo,
+    int loop, double threshold, bool debug);
