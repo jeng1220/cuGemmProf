@@ -163,17 +163,22 @@ GemmDtype_t GemmDtype(const LtGemmParam_t& lt_param) {
 
     int dtype;
     CUBLAS_CHECK(cublasLtMatmulDescGetAttribute(
+	    lt_param.op_desc, CUBLASLT_MATMUL_DESC_SCALE_TYPE,
+	    &dtype, sizeof(int), nullptr));
+    gemm_dtype.compute_type = static_cast<cudaDataType_t>(dtype);
+
+
+    CUBLAS_CHECK(cublasLtMatmulDescGetAttribute(
 	    lt_param.op_desc, CUBLASLT_MATMUL_DESC_COMPUTE_TYPE,
 	    &dtype, sizeof(int), nullptr));
-
-    gemm_dtype.compute_type = static_cast<cublasDataType_t>(dtype);
+    gemm_dtype.adv_compute_type = static_cast<cublasComputeType_t>(dtype);
     return gemm_dtype;
 }
 
 LtGemmParam_t CreateLtGemmParameter(const GemmParam_t& param) {
     LtGemmParam_t lt_param;
 
-    CUBLAS_CHECK(cublasLtMatmulDescCreate(&lt_param.op_desc, param.dtype.compute_type));
+    CUBLAS_CHECK(cublasLtMatmulDescCreate(&lt_param.op_desc, param.dtype.adv_compute_type, param.dtype.compute_type));
     CUBLAS_CHECK(cublasLtMatmulDescSetAttribute(lt_param.op_desc,
         CUBLASLT_MATMUL_DESC_TRANSA, &param.transa, sizeof(cublasOperation_t)));
     CUBLAS_CHECK(cublasLtMatmulDescSetAttribute(lt_param.op_desc,
@@ -339,7 +344,7 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
     auto gemm_dtype = GemmDtype(lt_param);
 
     CUBLAS_CHECK(cublasLtMatmulAlgoGetIds(
-        handle, gemm_dtype.compute_type, gemm_dtype.compute_type,
+        handle, gemm_dtype.adv_compute_type, gemm_dtype.compute_type,
         gemm_dtype.A, gemm_dtype.B, gemm_dtype.C, gemm_dtype.C,
         max_algos, algo_ids.data(), &nb_algo_id));
     algo_ids.resize(nb_algo_id);
@@ -351,7 +356,7 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
     for (int idx = 0; (idx < nb_algo_id) && (combine_count < max_combine_option); idx++) {
         cublasLtMatmulAlgo_t algo;
         CUBLAS_CHECK(cublasLtMatmulAlgoInit(handle, 
-            gemm_dtype.compute_type, gemm_dtype.compute_type, 
+            gemm_dtype.adv_compute_type, gemm_dtype.compute_type, 
             gemm_dtype.A, gemm_dtype.B, gemm_dtype.C, gemm_dtype.C,
             algo_ids[idx], &algo));
  

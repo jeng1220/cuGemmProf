@@ -49,16 +49,16 @@ std::string cublasGetErrorString(cublasStatus_t err) {
 
 GemmDtype_t GemmDtype(int id) {
     const static std::vector<GemmDtype_t> kGemmDtypes{
-        GemmDtype_t{CUDA_R_16F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F},
-        GemmDtype_t{CUDA_R_32I, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32I},
-        GemmDtype_t{CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F},
-        GemmDtype_t{CUDA_R_32F, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32F},
-        GemmDtype_t{CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_32F},
-        GemmDtype_t{CUDA_R_32F, CUDA_R_32F, CUDA_R_32F, CUDA_R_32F},
-        GemmDtype_t{CUDA_R_64F, CUDA_R_64F, CUDA_R_64F, CUDA_R_64F},
-        GemmDtype_t{CUDA_C_32F, CUDA_C_8I,  CUDA_C_8I,  CUDA_C_32F},
-        GemmDtype_t{CUDA_C_32F, CUDA_C_32F, CUDA_C_32F, CUDA_C_32F},
-        GemmDtype_t{CUDA_C_64F, CUDA_C_64F, CUDA_C_64F, CUDA_C_64F},
+        GemmDtype_t{CUDA_R_16F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F, CUBLAS_COMPUTE_16F},
+        GemmDtype_t{CUDA_R_32I, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32I, CUBLAS_COMPUTE_32I},
+        GemmDtype_t{CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F, CUBLAS_COMPUTE_32F},
+        GemmDtype_t{CUDA_R_32F, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32F, CUBLAS_COMPUTE_32F},
+        GemmDtype_t{CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_32F, CUBLAS_COMPUTE_32F},
+        GemmDtype_t{CUDA_R_32F, CUDA_R_32F, CUDA_R_32F, CUDA_R_32F, CUBLAS_COMPUTE_32F},
+        GemmDtype_t{CUDA_R_64F, CUDA_R_64F, CUDA_R_64F, CUDA_R_64F, CUBLAS_COMPUTE_64F},
+        GemmDtype_t{CUDA_C_32F, CUDA_C_8I,  CUDA_C_8I,  CUDA_C_32F, CUBLAS_COMPUTE_32F},
+        GemmDtype_t{CUDA_C_32F, CUDA_C_32F, CUDA_C_32F, CUDA_C_32F, CUBLAS_COMPUTE_32F},
+        GemmDtype_t{CUDA_C_64F, CUDA_C_64F, CUDA_C_64F, CUDA_C_64F, CUBLAS_COMPUTE_64F},
     };
     return kGemmDtypes.at(id);
 }

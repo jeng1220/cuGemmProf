@@ -30,6 +30,7 @@ struct GemmDtype_t {
     cudaDataType_t A;
     cudaDataType_t B;
     cudaDataType_t C;
+    cublasComputeType_t adv_compute_type;
 };
 
 struct GemmParam_t {
