@@ -49,6 +49,18 @@ std::string cublasGetErrorString(cublasStatus_t err) {
 
 GemmDtype_t GemmDtype(int id) {
     const static std::vector<GemmDtype_t> kGemmDtypes{
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) >= 110
+        GemmDtype_t{CUBLAS_COMPUTE_16F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F},
+        GemmDtype_t{CUBLAS_COMPUTE_32I, CUDA_R_32I, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32I},
+        GemmDtype_t{CUBLAS_COMPUTE_32F, CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F},
+        GemmDtype_t{CUBLAS_COMPUTE_32F, CUDA_R_32F, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32F},
+        GemmDtype_t{CUBLAS_COMPUTE_32F, CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_32F},
+        GemmDtype_t{CUBLAS_COMPUTE_32F, CUDA_R_32F, CUDA_R_32F, CUDA_R_32F, CUDA_R_32F},
+        GemmDtype_t{CUBLAS_COMPUTE_64F, CUDA_R_64F, CUDA_R_64F, CUDA_R_64F, CUDA_R_64F},
+        GemmDtype_t{CUBLAS_COMPUTE_32F, CUDA_C_32F, CUDA_C_8I,  CUDA_C_8I,  CUDA_C_32F},
+        GemmDtype_t{CUBLAS_COMPUTE_32F, CUDA_C_32F, CUDA_C_32F, CUDA_C_32F, CUDA_C_32F},
+        GemmDtype_t{CUBLAS_COMPUTE_64F, CUDA_C_64F, CUDA_C_64F, CUDA_C_64F, CUDA_C_64F},
+#else
         GemmDtype_t{CUDA_R_16F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F},
         GemmDtype_t{CUDA_R_32I, CUDA_R_8I,  CUDA_R_8I,  CUDA_R_32I},
         GemmDtype_t{CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, CUDA_R_16F},
@@ -59,6 +71,7 @@ GemmDtype_t GemmDtype(int id) {
         GemmDtype_t{CUDA_C_32F, CUDA_C_8I,  CUDA_C_8I,  CUDA_C_32F},
         GemmDtype_t{CUDA_C_32F, CUDA_C_32F, CUDA_C_32F, CUDA_C_32F},
         GemmDtype_t{CUDA_C_64F, CUDA_C_64F, CUDA_C_64F, CUDA_C_64F},
+#endif
     };
     return kGemmDtypes.at(id);
 }
@@ -98,6 +111,25 @@ std::string DtypeToString(cudaDataType_t dtype) {
     };
     return kDtype2Str.at(dtype);
 }
+
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) >= 110
+std::string DtypeToString(cublasComputeType_t dtype) {
+    const static std::map<cublasComputeType_t, std::string> kDtype2Str{
+        ADD_KEY_AND_STR(CUBLAS_COMPUTE_16F),
+        ADD_KEY_AND_STR(CUBLAS_COMPUTE_16F_PEDANTIC),
+        ADD_KEY_AND_STR(CUBLAS_COMPUTE_32F),
+        ADD_KEY_AND_STR(CUBLAS_COMPUTE_32F_PEDANTIC),
+        ADD_KEY_AND_STR(CUBLAS_COMPUTE_32F_FAST_16F),
+        ADD_KEY_AND_STR(CUBLAS_COMPUTE_32F_FAST_16BF),
+        ADD_KEY_AND_STR(CUBLAS_COMPUTE_32F_FAST_TF32),
+        ADD_KEY_AND_STR(CUBLAS_COMPUTE_64F),
+        ADD_KEY_AND_STR(CUBLAS_COMPUTE_64F_PEDANTIC),
+        ADD_KEY_AND_STR(CUBLAS_COMPUTE_32I),
+        ADD_KEY_AND_STR(CUBLAS_COMPUTE_32I_PEDANTIC),
+    };
+    return kDtype2Str.at(dtype);
+}
+#endif
 
 std::string AlgoToString(cublasGemmAlgo_t algo) {
 #if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) < 90

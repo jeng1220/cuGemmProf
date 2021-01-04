@@ -171,10 +171,10 @@ int main (int argc, const char* argv[]) {
         param.C = dev_C;
         param.D = dev_D;
 
-        auto compute_dtype_size = DtypeToSize(gemm_dtype.compute_type);
+        auto compute_dtype_size = DtypeToSize(gemm_dtype.scale_type);
  
         void* host_alpha;
-        host_alpha = AllocAlphaScale(gemm_dtype.compute_type);
+        host_alpha = AllocAlphaScale(gemm_dtype.scale_type);
 
         void* host_beta;
         host_beta = malloc(compute_dtype_size);
@@ -190,7 +190,7 @@ int main (int argc, const char* argv[]) {
             param.A, param.dtype.A, param.lda,
             param.B, param.dtype.B, param.ldb,
             param.D, param.dtype.C, param.ldc,
-            param.dtype.compute_type);
+            param.dtype.scale_type);
 
         auto results = ProfileGemm(param, selected_cuda_algo, loop, threshold, debug);
         PrintResult(param, results, rank);

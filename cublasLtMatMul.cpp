@@ -165,15 +165,23 @@ GemmDtype_t GemmDtype(const LtGemmParam_t& lt_param) {
     CUBLAS_CHECK(cublasLtMatmulDescGetAttribute(
 	    lt_param.op_desc, CUBLASLT_MATMUL_DESC_COMPUTE_TYPE,
 	    &dtype, sizeof(int), nullptr));
-
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) >= 110
+    gemm_dtype.compute_type = static_cast<cublasComputeType_t>(dtype);
+#else
     gemm_dtype.compute_type = static_cast<cublasDataType_t>(dtype);
+#endif
     return gemm_dtype;
 }
 
 LtGemmParam_t CreateLtGemmParameter(const GemmParam_t& param) {
     LtGemmParam_t lt_param;
 
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) >= 110
+    CUBLAS_CHECK(cublasLtMatmulDescCreate(&lt_param.op_desc,
+        param.dtype.compute_type, param.dtype.scale_type));
+#else
     CUBLAS_CHECK(cublasLtMatmulDescCreate(&lt_param.op_desc, param.dtype.compute_type));
+#endif
     CUBLAS_CHECK(cublasLtMatmulDescSetAttribute(lt_param.op_desc,
         CUBLASLT_MATMUL_DESC_TRANSA, &param.transa, sizeof(cublasOperation_t)));
     CUBLAS_CHECK(cublasLtMatmulDescSetAttribute(lt_param.op_desc,
@@ -337,11 +345,17 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
     int nb_algo_id = 0;
 
     auto gemm_dtype = GemmDtype(lt_param);
-
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) >= 110
+    CUBLAS_CHECK(cublasLtMatmulAlgoGetIds(
+        handle, gemm_dtype.compute_type, gemm_dtype.scale_type,
+        gemm_dtype.A, gemm_dtype.B, gemm_dtype.C, gemm_dtype.C,
+        max_algos, algo_ids.data(), &nb_algo_id));
+#else
     CUBLAS_CHECK(cublasLtMatmulAlgoGetIds(
         handle, gemm_dtype.compute_type, gemm_dtype.compute_type,
         gemm_dtype.A, gemm_dtype.B, gemm_dtype.C, gemm_dtype.C,
         max_algos, algo_ids.data(), &nb_algo_id));
+#endif
     algo_ids.resize(nb_algo_id);
 
     std::vector<LtProfResult_t> results;
@@ -350,11 +364,17 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
 
     for (int idx = 0; (idx < nb_algo_id) && (combine_count < max_combine_option); idx++) {
         cublasLtMatmulAlgo_t algo;
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) >= 110
+        CUBLAS_CHECK(cublasLtMatmulAlgoInit(handle,
+            gemm_dtype.compute_type, gemm_dtype.scale_type,
+            gemm_dtype.A, gemm_dtype.B, gemm_dtype.C, gemm_dtype.C,
+            algo_ids[idx], &algo));
+#else
         CUBLAS_CHECK(cublasLtMatmulAlgoInit(handle, 
             gemm_dtype.compute_type, gemm_dtype.compute_type, 
             gemm_dtype.A, gemm_dtype.B, gemm_dtype.C, gemm_dtype.C,
             algo_ids[idx], &algo));
- 
+#endif
         int splite_k_support;
         int reduction_scheme_mask;
         int swizzling_support;

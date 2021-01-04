@@ -26,7 +26,12 @@
 std::string cublasGetErrorString(cublasStatus_t err);
 
 struct GemmDtype_t {
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) >= 110
+    cublasComputeType_t compute_type;
+    cudaDataType_t scale_type;
+#else
     cudaDataType_t compute_type;
+#endif
     cudaDataType_t A;
     cudaDataType_t B;
     cudaDataType_t C;
