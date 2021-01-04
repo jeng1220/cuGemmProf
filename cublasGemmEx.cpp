@@ -102,6 +102,10 @@ std::vector<ProfResult_t> ProfileGemm(const GemmParam_t& param,
     CUDA_CHECK(cudaEventCreate(&start));
     CUDA_CHECK(cudaEventCreate(&end));
 
+    long long int strideA = param.m * param.k;
+    long long int strideB = param.n * param.k;
+    long long int strideC = param.m * param.n;
+
     std::vector<ProfResult_t> results;
     for (auto algo : algos) {
 
@@ -111,6 +115,18 @@ std::vector<ProfResult_t> ProfileGemm(const GemmParam_t& param,
 
         CUDA_CHECK(cudaEventRecord(start));
         for (int i = 0; i < loop; ++i) {
+#if 1
+            ret = cublasGemmStridedBatchedEx(handle,
+                param.transa, param.transb,
+                param.m, param.n, param.k,
+                param.alpha,
+                param.A, param.dtype.A, param.lda, strideA,
+                param.B, param.dtype.B, param.ldb, strideB,
+                param.beta,
+                param.C, param.dtype.C, param.ldc, strideC,
+                param.b,
+                param.dtype.compute_type, algo);
+#else
             ret = cublasGemmEx(handle,
                                param.transa, param.transb,
                                param.m, param.n, param.k,
@@ -118,6 +134,7 @@ std::vector<ProfResult_t> ProfileGemm(const GemmParam_t& param,
                                param.B, param.dtype.B, param.ldb, param.beta,
                                param.C, param.dtype.C, param.ldc,
                                param.dtype.compute_type, algo);
+#endif
             if (ret != CUBLAS_STATUS_SUCCESS) {
                 fault = true;
                 if (debug) {
@@ -132,7 +149,7 @@ std::vector<ProfResult_t> ProfileGemm(const GemmParam_t& param,
         CUDA_CHECK(cudaEventElapsedTime(&time, start, end));
 
         if (!fault) {
-            auto relative_err = Verify(param.C, param.D, param.m * param.n, param.dtype.C);
+            auto relative_err = Verify(param.C, param.D, param.b * param.m * param.n, param.dtype.C);
             if (relative_err > threshold) fault = true;
             if (fault && debug) {
                 std::cerr << "cublasGemmEx" << ", " << AlgoToString(algo) << ", verification failed" << std::endl;

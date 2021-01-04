@@ -40,6 +40,7 @@ struct GemmDtype_t {
 struct GemmParam_t {
     cublasOperation_t transa;
     cublasOperation_t transb;
+    int b;
     int m;
     int n;
     int k;

@@ -30,6 +30,7 @@ cxxopts::ParseResult Parse(int argc, const char* argv[]) {
         options.positional_help("[optional args]").show_positional_help();
 
         options.add_options()
+        ("b", "batch size", cxxopts::value<int>()->default_value("1"))
         ("m", "m dimension", cxxopts::value<int>()->default_value("32"))
         ("n", "n dimension", cxxopts::value<int>()->default_value("32"))
         ("k", "k dimension", cxxopts::value<int>()->default_value("32"))
@@ -86,7 +87,8 @@ int main (int argc, const char* argv[]) {
     cudaDeviceProp prop;
     CUDA_CHECK(cudaGetDeviceProperties(&prop, device_id));
 
-    GemmParam_t param;    
+    GemmParam_t param;
+    param.b = result["b"].as<int>();
     param.m = result["m"].as<int>();
     param.n = result["n"].as<int>();
     param.k = result["k"].as<int>();
@@ -148,23 +150,23 @@ int main (int argc, const char* argv[]) {
         auto dst_dtype_size = DtypeToSize(gemm_dtype.C);
 
         void* dev_A;
-        CUDA_CHECK(cudaMalloc(&dev_A, param.m * param.k * src_dtype_size));
+        CUDA_CHECK(cudaMalloc(&dev_A, param.b * param.m * param.k * src_dtype_size));
         InitMatrix(dev_A,
             (param.transa == CUBLAS_OP_N) ? param.m : param.k,
-            (param.transa == CUBLAS_OP_N) ? param.k : param.m,
+            param.b * (param.transa == CUBLAS_OP_N) ? param.k : param.m,
             param.lda, param.dtype.A);
         void* dev_B;
-        CUDA_CHECK(cudaMalloc(&dev_B, param.k * param.n * src_dtype_size));
+        CUDA_CHECK(cudaMalloc(&dev_B, param.b * param.k * param.n * src_dtype_size));
         InitMatrix(dev_B,
             (param.transb == CUBLAS_OP_N) ? param.k : param.n,
-            (param.transb == CUBLAS_OP_N) ? param.n : param.k,
+            param.b * (param.transb == CUBLAS_OP_N) ? param.n : param.k,
             param.ldb, param.dtype.B);
         void* dev_C;
-        CUDA_CHECK(cudaMalloc(&dev_C, param.m * param.n * dst_dtype_size));
-        CUDA_CHECK(cudaMemset(dev_C, 0, param.m * param.n * dst_dtype_size));
+        CUDA_CHECK(cudaMalloc(&dev_C, param.b * param.m * param.n * dst_dtype_size));
+        CUDA_CHECK(cudaMemset(dev_C, 0, param.b * param.m * param.n * dst_dtype_size));
         void* dev_D;
-        CUDA_CHECK(cudaMalloc(&dev_D, param.m * param.n * dst_dtype_size));
-        CUDA_CHECK(cudaMemset(dev_D, 0, param.m * param.n * dst_dtype_size));
+        CUDA_CHECK(cudaMalloc(&dev_D, param.b * param.m * param.n * dst_dtype_size));
+        CUDA_CHECK(cudaMemset(dev_D, 0, param.b * param.m * param.n * dst_dtype_size));
 
         param.A = dev_A;
         param.B = dev_B;

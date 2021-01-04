@@ -272,7 +272,7 @@ std::string TensorCoreRestrictions(const GemmParam_t& param) {
 
 void PrintResultTile() {
     std::cout << "Device, Op(A), Op(B), "
-        "M, N, K, ComputeType, A, B, C, "
+        "B, M, N, K, ComputeType, A, B, C, "
         "DP4A.Restrictions(lda.ldb), TensorCoreRestrictions(m.k.A.B.C.lda.ldb.ldc), "
         "Algo, Time(ms), GFLOPS, "
         "LtAlgoId, TileId, SpliteK, Red.Sch, Swizzle, CustomId, WorkSpaceSize, WaveCount" << std::endl;
@@ -288,6 +288,7 @@ std::string BasicGemmInfo(const GemmParam_t& param) {
     info = std::string(prop.name) + ", "
         + OperationToString(param.transa) + ", "
         + OperationToString(param.transb) + ", "
+        + std::to_string(param.b) + ", "
         + std::to_string(param.m) + ", "
         + std::to_string(param.n) + ", "
         + std::to_string(param.k) + ", "
@@ -309,7 +310,7 @@ void PrintResult(const GemmParam_t& param,
 
     std::string all_info = BasicGemmInfo(param);
 
-    float workload = (2.f * param.m * param.n * param.k) * 1e-9;
+    float workload = (2.f * param.b * param.m * param.n * param.k) * 1e-9;
 
     std::vector<ProfResult_t> order = results;
     std::sort(order.begin(), order.end(), SortResult);
