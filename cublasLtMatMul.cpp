@@ -380,6 +380,7 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
         int swizzling_support;
         int custom_option_max;
         std::vector<int> tile_ids;
+        std::vector<int> stage_ids;
 
         CUBLAS_CHECK(cublasLtMatmulAlgoCapGetAttribute(&algo,
             CUBLASLT_ALGO_CAP_SPLITK_SUPPORT, &splite_k_support, sizeof(int), nullptr));
@@ -405,11 +406,37 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
             tile_ids[0] = static_cast<int>(CUBLASLT_MATMUL_TILE_UNDEFINED);
         }
 
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) >= 110
+        CUBLAS_CHECK(cublasLtMatmulAlgoCapGetAttribute(&algo, CUBLASLT_ALGO_CAP_STAGES_IDS,
+            nullptr, 0, &size_in_bytes));
+
+        int nb_stages = static_cast<int>(size_in_bytes / sizeof(int));
+        if (nb_stages > 0) {
+            stage_ids.resize(nb_stages);
+            CUBLAS_CHECK(cublasLtMatmulAlgoCapGetAttribute(
+                &algo, CUBLASLT_ALGO_CAP_STAGES_IDS, stage_ids.data(), size_in_bytes, nullptr));
+        }
+        else {
+            stage_ids.resize(1);
+            stage_ids[0] = static_cast<int>(CUBLASLT_MATMUL_STAGES_UNDEFINED);
+        }
+#else
+        stage_ids.resize(1);
+        stage_ids[0] = 0;
+#endif
+
         for (auto tile_id : tile_ids) {
  
             CUBLAS_CHECK(cublasLtMatmulAlgoConfigSetAttribute(
                 &algo, CUBLASLT_ALGO_CONFIG_TILE_ID, &tile_id, sizeof(int)));
  
+            for (auto stage_id : stage_ids) {
+
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) >= 110
+                CUBLAS_CHECK(cublasLtMatmulAlgoConfigSetAttribute(
+                    &algo, CUBLASLT_ALGO_CONFIG_STAGES_ID, &stage_id, sizeof(int)));
+#endif
+
             for (int c = 0; c <= custom_option_max; ++c) {
                 CUBLAS_CHECK(cublasLtMatmulAlgoConfigSetAttribute(
                     &algo, CUBLASLT_ALGO_CONFIG_CUSTOM_OPTION, &c, sizeof(int)));
@@ -445,6 +472,7 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
                                 &algo, CUBLASLT_ALGO_CONFIG_REDUCTION_SCHEME, &reduction, sizeof(int)));
  
                             cublasLtMatmulHeuristicResult_t heur_result;
+                            memset(&heur_result, 0, sizeof(heur_result));
                             cublasStatus_t ret;
 
                             if (imma_param.trans_desc) {
@@ -483,6 +511,7 @@ std::vector<LtProfResult_t> ProfileAllLtGemmAlgo(cublasLtHandle_t handle,
                     } // end of splite-k
                 } // end of swizzling support
             } // end of cutom option
+            } // end of stage option
         } // end of tile size
     } // end of algorithm
     return results;
@@ -560,10 +589,14 @@ std::vector<LtProfResult_t> ProfileLtGemm(const GemmParam_t& param,
     cudaDeviceProp prop;
     CUDA_CHECK(cudaGetDeviceProperties(&prop, dev_id));
     auto dev_cap = prop.major * 10 + prop.minor;
-    bool use_imma = param.dtype.compute_type == CUDA_R_32I &&
-                    param.transa == CUBLAS_OP_N &&
+    bool use_imma = param.transa == CUBLAS_OP_N &&
                     param.transb == CUBLAS_OP_T &&
                     dev_cap >= 75;
+#if (CUBLAS_VER_MAJOR * 10 + CUBLAS_VER_MINOR) >= 110
+    use_imma &= param.dtype.compute_type == CUBLAS_COMPUTE_32I;
+#else
+    use_imma &= param.dtype.compute_type = CUDA_R_32I;
+#endif
 
     LtImmaParam_t imma_param;
     memset(&imma_param, 0, sizeof(LtImmaParam_t));
